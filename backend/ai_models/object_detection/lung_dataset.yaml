@@ -1,0 +1,10 @@
+# Đường dẫn tuyệt đối hoặc tương đối tới thư mục dataset_yolo
+path: /content/datatrain
+train: images/train
+val: images/val
+
+# Số lượng class (Nếu bạn chỉ khoanh vùng 1 loại bệnh, để là 1)
+nc: 1
+
+# Tên của các class
+names: ['Lung_Opacity']

@@ -1,0 +1,52 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+model_best/
+best-model/
+train-log.txt
+unet_resnet18/
+# Model AI
+*.pt
+*.pth
+*.onnx
+*.log
+# Dataset
+dataset/
+rsna-pneumonia-detection-challenge.zip
+# Logs
+logs/
+backend/ai_models/segmentation/unet_resnet18/train-log.txt
+.locks/
+# IDE
+.vscode/
+.idea/
+dense/
+# OS
+.DS_Store
+Thumbs.db
+*.pkl
+*.pth
+# Build
+dist/
+build/
+
+# Node
+node_modules/
+
+# Cache
+.cache/
+.pytest_cache/
+
+embedding_model/
+models--Qdrant--bm25/
+
+static/
+.next/
+node_modules/   
+unet_resnet18.zip
+densse.zip
+ra

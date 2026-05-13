@@ -1,0 +1,38 @@
+# Core API
+fastapi
+uvicorn[standard]
+gunicorn
+
+# Database
+sqlalchemy
+pyodbc
+pymysql
+aiomysql
+cryptography
+
+# Validation & config
+pydantic
+python-dotenv
+email-validator
+
+# Auth (thay Flask JWT)
+python-jose[cryptography]
+passlib[bcrypt]
+
+# AI / ML / xử lý dữ liệu
+numpy>=1.26.0
+nltk
+PyPDF2
+torch
+torchvision
+opencv-python-headless
+torchxrayvision
+timm
+pytorch-grad-cam
+
+pinecone
+groq
+# Dev / logging
+wandb
+
+# CORS (FastAPI có sẵn middleware, KHÔNG cần flask-cors)
