@@ -117,9 +117,20 @@ export default function DashboardPage() {
 
   const handleSelectPendingImage = (item: any) => {
     // Load the selected pending image into the dashboard
-    const baseUrl = "http://127.0.0.1:8000";
-    setSourceUrl(`${baseUrl}/${item.image_path}`);
-    setAnalyzedUrl(`${baseUrl}/${item.heatmap_path}`);
+    const baseUrl = "http://localhost:8000";
+    
+    const cleanPath = (p: string) => {
+      if (!p) return "";
+      if (p.startsWith('http')) return p;
+      let path = p;
+      if (path.startsWith('backend/')) path = path.substring(8);
+      if (path.startsWith('/backend/')) path = path.substring(9);
+      if (path.startsWith('/')) path = path.substring(1);
+      return `${baseUrl}/${path}`;
+    };
+    
+    setSourceUrl(cleanPath(item.image_path));
+    setAnalyzedUrl(cleanPath(item.heatmap_path));
     setPredictionId(item.prediction_id);
     setConfidenceScore(item.confidence);
     setAiInitialLabel(item.ai_label);
@@ -271,7 +282,7 @@ export default function DashboardPage() {
           }));
           setAnnotations(aiAnnotations);
           console.log("Loaded AI Annotations:", aiAnnotations);
-          showToast(`AI đã phát hiện ${aiAnnotations.length} vùng tổn thương.`, "info");
+          showToast(`The AI has detected ${aiAnnotations.length} lesion regions.`, "info");
         } else {
           setAnnotations([]);
           if (data.label === "Pneumonia") {

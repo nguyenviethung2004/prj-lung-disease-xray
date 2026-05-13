@@ -267,9 +267,16 @@ export default function AdminReviewList() {
                     onClick={() => setSelectedReview(review)}
                   >
                     <td className="px-6 py-4">
-                      <div className="w-12 h-12 rounded overflow-hidden border border-gray-100 bg-black shadow-sm group relative">
+                      <div className="w-12 h-12 rounded overflow-hidden border border-gray-100 bg-gray-100 shadow-sm group relative">
                         <img
-                          src={`http://127.0.0.1:8000/${review.image_path}`}
+                          src={(() => {
+                            let p = review.image_path || "";
+                            if (p.startsWith('http')) return p;
+                            if (p.startsWith('backend/')) p = p.substring(8);
+                            if (p.startsWith('/backend/')) p = p.substring(9);
+                            if (p.startsWith('/')) p = p.substring(1);
+                            return `http://localhost:8000/${p}`;
+                          })()}
                           alt="X-ray"
                           className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity"
                         />
@@ -431,9 +438,19 @@ export default function AdminReviewList() {
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Original Image (Input)</p>
                       <div className="aspect-square bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-inner group relative">
                         <img 
-                          src={`http://127.0.0.1:8000/${selectedReview.image_path}`} 
-                          className="w-full h-full object-contain"
+                          src={(() => {
+                            let p = selectedReview.image_path || "";
+                            if (p.startsWith('http')) return p;
+                            if (p.startsWith('backend/')) p = p.substring(8);
+                            if (p.startsWith('/backend/')) p = p.substring(9);
+                            if (p.startsWith('/')) p = p.substring(1);
+                            return `http://localhost:8000/${p}`;
+                          })()}
+                          className="w-full h-full object-cover relative z-20"
                           alt="Original X-ray"
+                          onError={(e) => {
+                            console.error("Lỗi tải ảnh gốc:", e.currentTarget.src);
+                          }}
                         />
                       </div>
                     </div>
@@ -540,8 +557,21 @@ function AnnotationCanvas({ imagePath, boxesJson }: { imagePath: string, boxesJs
     if (!ctx) return;
 
     const img = new Image();
-    img.src = `http://127.0.0.1:8000/${imagePath}`;
+    const baseUrl = "http://localhost:8000";
+    
+    let p = imagePath || "";
+    if (!p.startsWith('http')) {
+      if (p.startsWith('backend/')) p = p.substring(8);
+      if (p.startsWith('/backend/')) p = p.substring(9);
+      if (p.startsWith('/')) p = p.substring(1);
+      p = `${baseUrl}/${p}`;
+    }
+    
+    console.log("Đang tải ảnh lên Canvas từ:", p);
+    
+    img.src = p;
     img.onload = () => {
+      console.log("Ảnh đã tải xong, bắt đầu vẽ lên Canvas...");
       // Set canvas size to match its container's displayed size
       const container = canvas.parentElement;
       if (!container) return;
@@ -601,7 +631,7 @@ function AnnotationCanvas({ imagePath, boxesJson }: { imagePath: string, boxesJs
     };
     
     img.onerror = () => {
-      console.error("Không thể tải ảnh X-quang tại path:", img.src);
+      console.error("KHÔNG THỂ TẢI ẢNH TỪ PATH:", img.src);
     };
   }, [imagePath, boxesJson]);
 
