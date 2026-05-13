@@ -133,7 +133,7 @@ export default function PromptInput({
                 handleSubmit();
               }
             }}
-            placeholder={selectedFiles.length > 0 ? "Hỏi về các tài liệu đã chọn..." : "Hỏi về bệnh, thuốc hoặc ảnh..."}
+            placeholder={selectedFiles.length > 0 ? "Ask about the selected documents..." : "Ask about diseases, medications ..."}
             className="w-full text-[14px] bg-transparent border-none focus:ring-0 resize-none py-4 pl-1 pr-14 min-h-[56px] max-h-[200px] text-gray-800 placeholder-gray-400 leading-relaxed outline-none"
             disabled={disabled}
           />
@@ -165,7 +165,7 @@ export default function PromptInput({
         </form>
       </div>
       <div className="text-[11px] text-center text-gray-400 mt-1">
-        AI có thể mắc lỗi. Vui lòng kiểm tra kỹ các thông tin y tế quan trọng.
+        AI can make mistakes. Please double-check important medical information.
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
           </div>
           <h3 className="text-xl font-bold text-gray-900 tracking-tight">AI Assistant Sẵn Sàng</h3>
           <p className="text-sm text-gray-500 max-w-[240px] mt-3 leading-relaxed">
-            Hỏi tôi về phân tích hình ảnh, bệnh lý hoặc đơn thuốc.
+            Ask me about image analysis, medical conditions, or prescriptions.
           </p>
         </div>
       ) : (

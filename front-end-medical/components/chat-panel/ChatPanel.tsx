@@ -234,7 +234,7 @@ export default function ChatPanel({
               <div>
                 <h2 className="text-[16px] font-extrabold text-gray-900 tracking-tight leading-none">Medical AI</h2>
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest opacity-80">Hệ thống sẵn sàng</span>
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest opacity-80">System is ready</span>
                 </div>
               </div>
             </div>
@@ -281,9 +281,9 @@ export default function ChatPanel({
               onRemoveFile={handleRemoveFile}
               disabled={isLoading}
             />
-            <div className="px-6 py-2 text-center">
+            {/* <div className="px-6 py-2 text-center">
               <p className="text-[10px] text-gray-400 font-medium">AI có thể đưa ra câu trả lời không chính xác. Hãy kiểm tra lại thông tin y tế.</p>
-            </div>
+            </div> */}
           </div>
         </footer>
       </div>

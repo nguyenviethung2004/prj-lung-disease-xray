@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/context/ToastContext";
-import { apiFetch } from "@/lib/api/auth";
+import { getAuthUser, apiFetch } from "@/lib/api/auth";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 // Initial state is empty
 const INITIAL_DOCS: any[] = [];
 
 export default function DocumentManagementPage() {
+  const router = useRouter();
   const [docs, setDocs] = useState(INITIAL_DOCS);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,8 +32,19 @@ export default function DocumentManagementPage() {
   const itemsPerPage = 5;
 
   useEffect(() => {
+    const user = getAuthUser();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user.role !== "Superadmin") {
+      router.push("/dashboard");
+      return;
+    }
+
     fetchDocuments();
-  }, []);
+  }, [router]);
 
   const fetchDocuments = async () => {
     setIsLoading(true);
@@ -40,7 +52,7 @@ export default function DocumentManagementPage() {
       const data = await apiFetch("/documents/");
       setDocs(data || []);
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi tải danh sách tài liệu", "error");
+      showToast(error.message || "Failed to load document list", "error");
     } finally {
       setIsLoading(false);
     }
@@ -75,9 +87,9 @@ export default function DocumentManagementPage() {
     try {
       await apiFetch(`/documents/${docToProcess}`, { method: "DELETE" });
       setDocs(docs.filter(d => d.DocumentID !== docToProcess));
-      showToast("Đã xóa tài liệu thành công!");
+      showToast("Document deleted successfully!");
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi xóa tài liệu", "error");
+      showToast(error.message || "Failed to delete document", "error");
     } finally {
       setIsDeleteDialogOpen(false);
       setDocToProcess(null);
@@ -92,7 +104,7 @@ export default function DocumentManagementPage() {
         }
       });
 
-      if (!response.ok) throw new Error("Tải xuống thất bại");
+      if (!response.ok) throw new Error("Failed to download document");
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -104,7 +116,7 @@ export default function DocumentManagementPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi tải xuống tài liệu", "error");
+      showToast(error.message || "Failed to download document", "error");
     }
   };
 
@@ -122,12 +134,12 @@ export default function DocumentManagementPage() {
       // Đóng dialog và xóa trạng thái ngay lập tức để màn hình không bị "đơ"
       setIsApproveDialogOpen(false);
       setDocToProcess(null);
-      showToast("Đã duyệt và bắt đầu xử lý tài liệu!");
+      showToast("Document approved and processing started!");
 
       // Sau đó mới load lại dữ liệu ở ngầm
       await fetchDocuments();
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi duyệt tài liệu", "error");
+      showToast(error.message || "Failed to approve document", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -154,9 +166,9 @@ export default function DocumentManagementPage() {
       } : d));
 
       setIsEditOpen(false);
-      showToast("Cập nhật thông tin thành công!");
+      showToast("Information updated successfully!");
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi cập nhật tài liệu", "error");
+      showToast(error.message || "Failed to update document", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -203,9 +215,9 @@ export default function DocumentManagementPage() {
       setIsUploadOpen(false);
       setNewTitle("");
       setSelectedFile(null);
-      showToast("Tải lên tài liệu thành công!");
+      showToast("Document uploaded successfully!");
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi tải lên tài liệu", "error");
+      showToast(error.message || "Failed to upload document", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -232,15 +244,15 @@ export default function DocumentManagementPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý Tài liệu</h1>
-          <p className="text-sm text-gray-500 mt-1">Tải lên và quản lý các tài liệu y khoa (PDF, DOCX) phục vụ RAG</p>
+          <h1 className="text-2xl font-bold text-gray-900">Document Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Upload and manage medical documents (PDF, DOCX) for RAG</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={fetchDocuments}
             disabled={isLoading}
             className="p-3 bg-white text-indigo-600 rounded-2xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] transition-all hover:scale-110 active:scale-95 group flex items-center justify-center"
-            title="Làm mới"
+            title="Refresh"
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -271,11 +283,11 @@ export default function DocumentManagementPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tổng số tài liệu</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Documents</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{docs.length}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Đã xử lý</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Processed</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{docs.filter(d => d.Status === "Done").length}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
@@ -294,7 +306,7 @@ export default function DocumentManagementPage() {
         <input
           type="text"
           className="block w-full p-3 pl-10 text-sm text-gray-900 border border-gray-200 rounded-xl bg-white focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
-          placeholder="Tìm kiếm tài liệu theo tên hoặc file..."
+          placeholder="Search documents by name or file..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -306,12 +318,12 @@ export default function DocumentManagementPage() {
           <table className="w-full text-sm text-left text-gray-600">
             <thead className="text-[11px] text-gray-400 uppercase bg-gray-50/50 border-b border-gray-100">
               <tr>
-                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Tài liệu</th>
-                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Người gửi</th>
+                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Document</th>
+                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Uploader</th>
                 <th scope="col" className="px-6 py-4 font-bold tracking-wider">Size</th>
-                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Ngày tải</th>
-                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Trạng thái</th>
-                <th scope="col" className="px-6 py-4 font-bold tracking-wider text-right">Thao tác</th>
+                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Upload Date</th>
+                <th scope="col" className="px-6 py-4 font-bold tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-4 font-bold tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -323,7 +335,7 @@ export default function DocumentManagementPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      <span className="text-sm font-medium">Đang tải tài liệu...</span>
+                      <span className="text-sm font-medium">Loading documents...</span>
                     </div>
                   </td>
                 </tr>
@@ -364,7 +376,7 @@ export default function DocumentManagementPage() {
                         <button 
                           onClick={() => handleDownload(doc.DocumentID, doc.FileName)} 
                           className="p-2.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-xl transition-all active:scale-95 shadow-sm" 
-                          title="Tải xuống"
+                          title="Download Document"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         </button>
@@ -372,7 +384,7 @@ export default function DocumentManagementPage() {
                           <button 
                             onClick={() => handleApprove(doc.DocumentID)} 
                             className="p-2.5 text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 rounded-xl transition-all active:scale-95 shadow-sm" 
-                            title="Duyệt & Chunk"
+                            title="Approve & Chunk"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
                           </button>
@@ -380,14 +392,14 @@ export default function DocumentManagementPage() {
                         <button 
                           onClick={() => handleEditClick(doc)} 
                           className="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl transition-all active:scale-95 shadow-sm" 
-                          title="Sửa"
+                          title="Edit Document"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         </button>
                         <button 
                           onClick={() => handleDelete(doc.DocumentID)} 
                           className="p-2.5 text-red-500 bg-red-50 hover:bg-red-100 border border-red-100 rounded-xl transition-all active:scale-95 shadow-sm" 
-                          title="Xóa"
+                          title="Delete Document"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
@@ -398,7 +410,7 @@ export default function DocumentManagementPage() {
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-gray-400 italic">
-                    Không tìm thấy tài liệu phù hợp.
+                    No matching documents found.
                   </td>
                 </tr>
               )}
@@ -410,7 +422,7 @@ export default function DocumentManagementPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/30">
             <div className="text-[13px] text-gray-500 font-medium">
-              Hiển thị <span className="text-gray-900 font-bold">{((currentPage - 1) * itemsPerPage) + 1}</span> đến <span className="text-gray-900 font-bold">{Math.min(currentPage * itemsPerPage, filteredDocs.length)}</span> trong <span className="text-gray-900 font-bold">{filteredDocs.length}</span> tài liệu
+              Showing <span className="text-gray-900 font-bold">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="text-gray-900 font-bold">{Math.min(currentPage * itemsPerPage, filteredDocs.length)}</span> of <span className="text-gray-900 font-bold">{filteredDocs.length}</span> documents
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -453,7 +465,7 @@ export default function DocumentManagementPage() {
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center">
-              <h3 className="font-bold text-[17px] text-gray-900">Tải lên tài liệu mới</h3>
+              <h3 className="font-bold text-[17px] text-gray-900">Upload New Document</h3>
               <button onClick={() => setIsUploadOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
@@ -474,10 +486,10 @@ export default function DocumentManagementPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-bold text-gray-900">
-                    {selectedFile ? selectedFile.name : "Chọn file PDF hoặc DOCX"}
+                    {selectedFile ? selectedFile.name : "Select PDF or DOCX file to upload"}
                   </p>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    {selectedFile ? formatFileSize(selectedFile.size) : "Dung lượng tối đa 10MB"}
+                    {selectedFile ? formatFileSize(selectedFile.size) : "Maximum file size is 10MB"}
                   </p>
                 </div>
                 <input
@@ -490,13 +502,13 @@ export default function DocumentManagementPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-gray-700 ml-1">Tiêu đề tài liệu</label>
+                <label className="text-[13px] font-bold text-gray-700 ml-1">Document Title</label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={e => setNewTitle(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all placeholder:text-gray-300"
-                  placeholder="Nhập tiêu đề hoặc tên tài liệu..."
+                  placeholder="Enter document title or name..."
                 />
               </div>
 
@@ -521,14 +533,14 @@ export default function DocumentManagementPage() {
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center">
-              <h3 className="font-bold text-[17px] text-gray-900">Chỉnh sửa thông tin</h3>
+              <h3 className="font-bold text-[17px] text-gray-900">Edit Document Information</h3>
               <button onClick={() => setIsEditOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
             <form onSubmit={handleEditSubmit} className="p-6 space-y-6">
               <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-gray-700 ml-1">Tiêu đề tài liệu</label>
+                <label className="text-[13px] font-bold text-gray-700 ml-1">Document Title</label>
                 <input
                   type="text"
                   value={newTitle}
@@ -540,7 +552,7 @@ export default function DocumentManagementPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setIsEditOpen(false)} className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-all">Hủy</button>
                 <button type="submit" disabled={isSubmitting} className="flex-[2] py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-100 transition-all flex items-center justify-center">
-                  {isSubmitting ? "Đang lưu..." : "Lưu thay đổi"}
+                  {isSubmitting ? "Saving..." : "Save changes"}
                 </button>
               </div>
             </form>
@@ -551,10 +563,10 @@ export default function DocumentManagementPage() {
       {/* Confirmation Dialogs */}
       <ConfirmDialog
         isOpen={isApproveDialogOpen}
-        title="Duyệt tài liệu"
-        message="Bạn có chắc chắn muốn duyệt và bắt đầu quá trình xử lý (chunking) cho tài liệu này?"
-        confirmLabel="Duyệt & Chunk"
-        cancelLabel="Hủy"
+        title="Approve Document"
+        message="Are you sure you want to approve and start the processing (chunking) for this document?"
+        confirmLabel="Approve & Chunk"
+        cancelLabel="Cancel"
         onConfirm={confirmApprove}
         onCancel={() => setIsApproveDialogOpen(false)}
         isSubmitting={isSubmitting}
@@ -562,10 +574,10 @@ export default function DocumentManagementPage() {
 
       <ConfirmDialog
         isOpen={isDeleteDialogOpen}
-        title="Xóa tài liệu"
-        message="Hành động này sẽ xóa vĩnh viễn tài liệu khỏi hệ thống. Bạn có chắc chắn không?"
-        confirmLabel="Xóa vĩnh viễn"
-        cancelLabel="Hủy"
+        title="Delete Document"
+        message="This action will permanently delete the document from the system. Are you sure you want to proceed?"
+        confirmLabel="Delete Permanently"
+        cancelLabel="Cancel"
         onConfirm={confirmDelete}
         onCancel={() => setIsDeleteDialogOpen(false)}
         isDanger={true}

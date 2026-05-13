@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
-import { apiFetch } from "@/lib/api/auth";
+import { getAuthUser, apiFetch } from "@/lib/api/auth";
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -20,20 +22,31 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    const user = getAuthUser();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user.role !== "Superadmin") {
+      router.push("/dashboard");
+      return;
+    }
+
     fetchStats();
-  }, []);
+  }, [router]);
 
   const statCards = [
-    { title: "Tổng số ảnh", value: stats?.overview?.total_images || 0 },
-    { title: "AI dự đoán", value: stats?.overview?.total_predictions || 0 },
-    { title: "Bác sĩ review", value: stats?.overview?.total_reviews || 0 },
-    { title: "Độ chính xác AI", value: `${stats?.overview?.ai_accuracy_percentage || 0}%` },
+    { title: "Total Images", value: stats?.overview?.total_images || 0 },
+    { title: "AI Predictions", value: stats?.overview?.total_predictions || 0 },
+    { title: "Doctor Reviews", value: stats?.overview?.total_reviews || 0 },
+    { title: "AI Accuracy", value: `${stats?.overview?.ai_accuracy_percentage || 0}%` },
   ];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Hệ thống AI Monitoring</h1>
+        <h1 className="text-2xl font-bold text-gray-900">AI Monitoring System</h1>
         <button
           onClick={fetchStats}
           disabled={isLoading}
@@ -171,7 +184,7 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
             <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
-            Phân tích lỗi AI (Confusion Matrix)
+            AI Error Analysis (Confusion Matrix)
           </h2>
 
           <div className="flex flex-col items-center justify-center py-10 bg-gray-50/30 rounded-3xl border border-gray-100/50 backdrop-blur-sm">
@@ -258,15 +271,15 @@ export default function AdminDashboard() {
                                     
                                     <div className="absolute -top-14 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-900/95 backdrop-blur-md text-white text-[11px] rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap z-[100] pointer-events-none font-bold shadow-2xl border border-white/10 scale-90 group-hover:scale-100">
                                       <div className="flex flex-col items-center gap-0.5">
-                                        <span className="text-[9px] text-gray-400 uppercase tracking-tighter">Thực tế: {actual}</span>
-                                        <span>AI đoán: {predicted} ({count} ca)</span>
+                                        <span className="text-[9px] text-gray-400 uppercase tracking-tighter">Actual: {actual}</span>
+                                        <span>AI Prediction: {predicted} ({count} cases)</span>
                                         {count > 0 ? (
                                           <span className={isDiagonal ? "text-emerald-400" : "text-rose-400"}>
-                                            {isDiagonal ? "AI và Bác sĩ khớp nhãn (Đúng)" : "AI và Bác sĩ lệch nhãn (Sai)"}
+                                            {isDiagonal ? "AI and Doctor Match Labels (Correct)" : "AI and Doctor Mismatch Labels (Incorrect)"}
                                           </span>
                                         ) : (
                                           <span className="text-gray-400 italic">
-                                            {isDiagonal ? "Vị trí dự đoán đúng (Chưa có ca nào)" : "Vị trí dự đoán sai"}
+                                            {isDiagonal ? "AI prediction is correct (No cases available)" : "AI prediction is incorrect (No cases available)"}
                                           </span>
                                         )}
                                       </div>
@@ -297,18 +310,18 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="h-[200px] flex items-center justify-center text-gray-400 italic">
-                Chưa có dữ liệu ma trận.
+                No matrix data available.
               </div>
             )}
           </div>
-          <p className="text-xs text-gray-400 mt-4 italic">* Thống kê dựa trên các ca bác sĩ đã sửa nhãn so với AI đoán.</p>
+          <p className="text-xs text-gray-400 mt-4 italic">Statistics based on cases where doctors corrected labels compared to AI predictions.</p>
         </div>
 
         {/* Model Performance */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
             <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
-            Hiệu suất theo Model Version
+            Performance by Model Version
           </h2>
           <div className="space-y-4">
             {isLoading ? (
@@ -322,12 +335,12 @@ export default function AdminDashboard() {
                   </div>
                   <div className="text-right">
                     <span className="text-xl font-bold text-blue-600">{m.predictions}</span>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">Dự đoán</p>
+                    <p className="text-[10px] text-gray-400 uppercase font-bold">AI Predictions</p>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-gray-500 italic text-center py-10">Chưa có thông tin model.</p>
+              <p className="text-sm text-gray-500 italic text-center py-10">No model information available.</p>
             )}
           </div>
         </div>

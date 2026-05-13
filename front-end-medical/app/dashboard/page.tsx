@@ -152,7 +152,7 @@ export default function DashboardPage() {
 
     setIsReviewed(false);
     setIsPendingModalOpen(false);
-    showToast(`Đã nạp ca chờ: ${item.filename}. Vui lòng kiểm tra nhãn và nhấn "Lưu kết quả" để hoàn tất.`);
+    showToast(`Pending case loaded: ${item.filename}. Please verify the labels and click "Save results" to complete the process.`);
   };
 
   // Dynamic Label Mapping from DB
@@ -340,7 +340,7 @@ export default function DashboardPage() {
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isReviewed) return;
     if (selectedLabel !== "Pneumonia") {
-      showToast("Chỉ có thể vẽ box cho chẩn đoán Viêm phổi (Pneumonia).", "info");
+      showToast("Bounding boxes can only be drawn for pneumonia diagnosis (Pneumonia).", "info");
       return;
     }
     const pos = getMousePos(e);
@@ -476,12 +476,12 @@ export default function DashboardPage() {
         body: JSON.stringify(payload),
       });
 
-      showToast("Đã lưu kết quả đánh giá thành công!");
+      showToast("Evaluation results saved successfully!");
       setIsReviewed(true);
       fetchPendingImages(); // Refresh the pending list
     } catch (error: any) {
-      console.error("Lỗi khi lưu kết quả review:", error);
-      showToast(error.message || "Đã xảy ra lỗi khi lưu kết quả.", "error");
+      console.error("Error saving review results:", error);
+  showToast(error.message || "An error occurred while saving the results.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -529,7 +529,7 @@ export default function DashboardPage() {
         { role: "bot", text: botReply },
       ]);
     } catch (error) {
-      console.error("Lỗi khi gọi Chatbot API:", error);
+      console.error("Error calling Chatbot API:", error);
       setChatMessages((prev) => [
         ...prev,
         { role: "bot", text: "Xin lỗi, đã có lỗi kết nối đến server AI." },
@@ -583,10 +583,10 @@ export default function DashboardPage() {
       setDocDescription("");
       setSelectedPDF(null);
       if (docInputRef.current) docInputRef.current.value = "";
-      showToast("Tải lên thành công! Tài liệu đang ở trạng thái Pending.");
+      showToast("Upload successful! The document is now in Pending status.");
       fetchMyDocs();
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi tải lên tài liệu", "error");
+      showToast(error.message || "Error occurred while uploading the document.", "error");
     } finally {
       setIsUploadingDoc(false);
     }
@@ -602,11 +602,11 @@ export default function DashboardPage() {
         doc.DocumentID === docId ? { ...doc, IsSubmitted: true, Status: 'Pending' } : doc
       ));
 
-      showToast("Đã gửi tài liệu cho Admin xét duyệt!");
+      showToast("Document has been submitted to the admin for review!");
       // Vẫn gọi fetch để đồng bộ dữ liệu chính xác từ server nhưng UI đã đổi rồi
       fetchMyDocs();
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi gửi tài liệu", "error");
+      showToast(error.message || "Error occurred while submitting the document.", "error");
     } finally {
       setSubmittingDocId(null);
     }
@@ -621,10 +621,10 @@ export default function DashboardPage() {
     if (!docToDelete) return;
     try {
       await apiFetch(`/documents/${docToDelete}`, { method: "DELETE" });
-      showToast("Đã xóa tài liệu thành công!");
+      showToast("Document deleted successfully!");
       fetchMyDocs();
     } catch (error: any) {
-      showToast(error.message || "Lỗi khi xóa tài liệu", "error");
+      showToast(error.message || "Error occurred while deleting the document.", "error");
     } finally {
       setIsDeleteDialogOpen(false);
       setDocToDelete(null);
@@ -702,7 +702,7 @@ export default function DashboardPage() {
                 <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
                 <polyline points="21 3 21 8 16 8"></polyline>
               </svg>
-              Review ca chờ
+              Pending Review
               {pendingImages.length > 0 && (
                 <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
                   {pendingImages.length}
@@ -730,7 +730,7 @@ export default function DashboardPage() {
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
-              Tải tài liệu
+              Upload Documents
               {myDocs.filter(d => !d.IsSubmitted).length > 0 && (
                 <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
                   {myDocs.filter(d => !d.IsSubmitted).length}
@@ -1085,12 +1085,12 @@ export default function DashboardPage() {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          Lưu kết quả...
+                          Saving results...
                         </>
                       ) : isReviewed ? (
-                        "Đã lưu kết quả"
+                        "Results saved"
                       ) : (
-                        "Lưu kết quả"
+                        "Save results"
                       )}
                     </button>
                 </div>
@@ -1118,7 +1118,7 @@ export default function DashboardPage() {
             <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                Quản lý tài liệu y khoa
+                Medical Document Management
               </h3>
               <button onClick={() => setIsDocModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -1128,11 +1128,11 @@ export default function DashboardPage() {
             <div className="p-6 overflow-y-auto flex-1">
               {/* Upload Section */}
               <div className="mb-8 p-5 bg-indigo-50/30 border border-indigo-100 rounded-xl">
-                <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider mb-4">Tải lên tài liệu mới</h4>
+                <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider mb-4">Upload New Document</h4>
                 <div className="space-y-4">
                   <input
                     type="text"
-                    placeholder="Nhập tên tài liệu (bắt buộc)"
+                    placeholder="Enter document name (required)"
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-sm font-medium"
                     value={docDescription}
                     onChange={(e) => setDocDescription(e.target.value)}
@@ -1170,8 +1170,8 @@ export default function DashboardPage() {
                       ) : (
                         <>
                           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500 mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                          <p className="text-sm font-semibold text-indigo-900">Chọn file PDF</p>
-                          <p className="text-xs text-gray-500 mt-1">Dung lượng tối đa 16MB</p>
+                          <p className="text-sm font-semibold text-indigo-900">Select PDF file</p>
+                          <p className="text-xs text-gray-500 mt-1">Maximum file size: 16MB</p>
                         </>
                       )}
                     </label>
@@ -1188,21 +1188,21 @@ export default function DashboardPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Đang tải lên...
+                        Uploading...
                       </>
                     ) : (
-                      "Xác nhận tải lên"
+                      "Confirm Upload"
                     )}
                   </button>
                 </div>
               </div>
 
               {/* List Section */}
-              <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Tài liệu đã tải lên</h4>
+              <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Document uploaded</h4>
               <div className="space-y-3">
                 {myDocs.length === 0 ? (
                   <div key="empty-docs" className="text-center py-10 text-gray-500 italic text-sm">
-                    Chưa có tài liệu nào được tải lên.
+                    No documents uploaded yet.
                   </div>
                 ) : (
                   myDocs.map((doc) => (
@@ -1212,7 +1212,7 @@ export default function DashboardPage() {
                           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-900 truncate">{doc.Description || "Không có tiêu đề"}</p>
+                          <p className="text-sm font-bold text-gray-900 truncate">{doc.Description || "No title available"}</p>
                           <p className="text-[11px] text-gray-500 truncate italic">{doc.FileName}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter ${doc.Status === 'Done' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
@@ -1238,28 +1238,28 @@ export default function DashboardPage() {
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                <span>Đang gửi...</span>
+                                <span>Uploading...</span>
                               </>
                             ) : (
-                              "Chuyển đi"
+                              "Submit"
                             )}
                           </button>
                         )}
                         {doc.IsSubmitted && doc.Status === 'Pending' && (
                           <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-                            Đã chuyển
+                            Submitted
                           </span>
                         )}
                         {doc.Status === 'Done' && (
                           <span className="text-[11px] font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg border border-green-100">
-                            Đã duyệt
+                            Approved
                           </span>
                         )}
                         
                         <button
                           onClick={() => handleDeleteMyDoc(doc.DocumentID)}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Xóa tài liệu"
+                          title="Delete Document"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
@@ -1272,7 +1272,7 @@ export default function DashboardPage() {
 
             <div className="p-4 bg-gray-50 border-t border-gray-100 text-center">
               <p className="text-[11px] text-gray-500 font-medium">
-                Tài liệu sau khi duyệt sẽ được đưa vào hệ thống kiến thức hỗ trợ chẩn đoán.
+                Documents will be added to the diagnostic support knowledge system after approval.
               </p>
             </div>
           </div>
@@ -1300,8 +1300,8 @@ export default function DashboardPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-gray-900">Danh sách ca chờ Review</h3>
-                  <p className="text-xs text-gray-500 font-medium">Bạn có {pendingImages.length} ca chưa hoàn thành đánh giá</p>
+                  <h3 className="font-bold text-lg text-gray-900">Review Queue</h3>
+                  <p className="text-xs text-gray-500 font-medium">You have {pendingImages.length} cases pending review</p>
                 </div>
               </div>
               <button onClick={() => setIsPendingModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all">

@@ -4,9 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/context/ToastContext";
-import { getAllUsers, adminCreateUser, adminDeleteUser, adminUpdateUser } from "@/lib/api/auth";
-
-// MOCK_USERS removed as we now use real API data
+import { getAuthUser, getAllUsers, adminCreateUser, adminDeleteUser, adminUpdateUser } from "@/lib/api/auth";
 
 export default function UserManagementPage() {
   const router = useRouter();
@@ -55,8 +53,19 @@ export default function UserManagementPage() {
   };
 
   useEffect(() => {
+    const user = getAuthUser();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user.role !== "Superadmin") {
+      router.push("/dashboard");
+      return;
+    }
+
     fetchUsers();
-  }, [filterRole]);
+  }, [router, filterRole]);
 
   const filteredData = users.filter(
     (item) =>
@@ -120,11 +129,11 @@ export default function UserManagementPage() {
         role: editUserRole,
         must_change_password: editMustChangePassword
       });
-      showToast("Cập nhật người dùng thành công!");
+      showToast("User updated successfully!");
       setIsEditOpen(false);
       fetchUsers();
     } catch (err: any) {
-      showToast(err.message || "Lỗi cập nhật người dùng", "error");
+      showToast(err.message || "Failed to update user", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -141,11 +150,11 @@ export default function UserManagementPage() {
     setIsSubmitting(true);
     try {
       await adminDeleteUser(userToDelete.UserID);
-      showToast("Xóa người dùng thành công");
+      showToast("User deleted successfully");
       setIsDeleteOpen(false);
       fetchUsers();
     } catch (err: any) {
-      showToast(err.message || "Lỗi khi xóa người dùng", "error");
+      showToast(err.message || "Failed to delete user", "error");
     } finally {
       setIsSubmitting(false);
       setUserToDelete(null);
@@ -177,7 +186,7 @@ export default function UserManagementPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Quản lý và cấp quyền truy cập hệ thống cho người dùng mới</p>
+          <p className="text-sm text-gray-500 mt-1">Manage and grant system access to new users</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -293,7 +302,7 @@ export default function UserManagementPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/30">
             <div className="text-[13px] text-gray-500 font-medium">
-              Hiển thị <span className="text-gray-900 font-bold">{((currentPage - 1) * itemsPerPage) + 1}</span> đến <span className="text-gray-900 font-bold">{Math.min(currentPage * itemsPerPage, filteredData.length)}</span> trong <span className="text-gray-900 font-bold">{filteredData.length}</span> người dùng
+              Show <span className="text-gray-900 font-bold">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="text-gray-900 font-bold">{Math.min(currentPage * itemsPerPage, filteredData.length)}</span> of <span className="text-gray-900 font-bold">{filteredData.length}</span> users
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -449,7 +458,7 @@ export default function UserManagementPage() {
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="mustChangePassword" className="text-sm text-gray-700 font-medium">
-                  Yêu cầu đổi mật khẩu khi đăng nhập lần tới
+                  You will be asked to change your password the next time you log in.
                 </label>
               </div>
 
@@ -475,10 +484,10 @@ export default function UserManagementPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Xác nhận xóa</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Confirm Deletion</h3>
               <p className="text-sm text-gray-500 mb-6">
-                Bạn có chắc chắn muốn xóa người dùng <span className="font-semibold text-gray-900">{userToDelete.UserName}</span>? 
-                Hành động này không thể hoàn tác.
+                Are you sure you want to delete the user <span className="font-semibold text-gray-900">{userToDelete.UserName}</span>? 
+                This action cannot be undone.
               </p>
               
               <div className="flex gap-3">
@@ -487,14 +496,14 @@ export default function UserManagementPage() {
                   disabled={isSubmitting}
                   className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none disabled:opacity-50"
                 >
-                  Hủy bỏ
+                  Cancel
                 </button>
                 <button
                   onClick={handleConfirmDelete}
                   disabled={isSubmitting}
                   className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm focus:outline-none disabled:opacity-70"
                 >
-                  {isSubmitting ? "Đang xóa..." : "Xóa vĩnh viễn"}
+                  {isSubmitting ? "Deleting..." : "Permanently Delete"}
                 </button>
               </div>
             </div>
@@ -542,7 +551,7 @@ export default function UserManagementPage() {
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(createdUserInfo.password);
-                        showToast("Mật khẩu đã được sao chép!", "success");
+                        showToast("Password copied!", "success");
                       }}
                       className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                       title="Copy Password"

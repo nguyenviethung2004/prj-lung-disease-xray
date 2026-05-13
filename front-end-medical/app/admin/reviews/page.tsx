@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { apiFetch } from "@/lib/api/auth";
+import { useRouter } from "next/navigation";
+import { getAuthUser, apiFetch } from "@/lib/api/auth";
 
 export default function AdminReviewList() {
+  const router = useRouter();
   const [reviews, setReviews] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -32,7 +34,7 @@ export default function AdminReviewList() {
       setClasses(classesData);
       setDoctors(doctorsData);
     } catch (error) {
-      console.error("Lỗi khi tải metadata:", error);
+      console.error("Error loading metadata:", error);
     }
   };
 
@@ -52,19 +54,27 @@ export default function AdminReviewList() {
       setTotal(data.total);
       setCurrentPage(data.page);
     } catch (error) {
-      console.error("Lỗi khi tải danh sách review:", error);
+      console.error("Error loading review list:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMetadata();
-  }, []);
+    const user = getAuthUser();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
 
-  useEffect(() => {
+    if (user.role !== "Superadmin") {
+      router.push("/dashboard");
+      return;
+    }
+
+    fetchMetadata();
     fetchReviews(currentPage);
-  }, [currentPage, filters]);
+  }, [router, currentPage, filters]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -90,14 +100,14 @@ export default function AdminReviewList() {
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Giám sát chất lượng AI</h1>
-          <p className="text-sm text-gray-500 mt-1">Phân tích kết quả dự đoán và đánh giá từ bác sĩ chuyên khoa</p>
+          <h1 className="text-2xl font-bold text-gray-900">AI Quality Monitoring</h1>
+          <p className="text-sm text-gray-500 mt-1">Analyze prediction results and expert evaluations</p>
         </div>
         <button
           onClick={() => fetchReviews(currentPage)}
           disabled={isLoading}
           className="p-3 bg-white text-indigo-600 rounded-2xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] transition-all hover:scale-110 active:scale-95 group flex items-center justify-center"
-          title="Làm mới"
+          title="Refresh"
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -121,14 +131,14 @@ export default function AdminReviewList() {
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Bệnh (Bác sĩ chốt)</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Doctor's Final Diagnosis</label>
             <select
               name="class_id"
               value={filters.class_id}
               onChange={handleFilterChange}
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
             >
-              <option value="">Tất cả bệnh</option>
+              <option value="">All Diseases</option>
               {classes.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -136,14 +146,14 @@ export default function AdminReviewList() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Độ tin cậy AI</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">AI Confidence</label>
             <select
               name="min_confidence"
               value={filters.min_confidence}
               onChange={handleFilterChange}
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
             >
-              <option value="">Tất cả mức</option>
+              <option value="">All Levels</option>
               <option value="50">&gt; 50%</option>
               <option value="70">&gt; 70%</option>
               <option value="90">&gt; 90%</option>
@@ -151,14 +161,14 @@ export default function AdminReviewList() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Bác sĩ Review</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Doctor Review</label>
             <select
               name="doctor_id"
               value={filters.doctor_id}
               onChange={handleFilterChange}
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
             >
-              <option value="">Tất cả bác sĩ</option>
+              <option value="">All Doctors</option>
               {doctors.map(d => (
                 <option key={d.UserID} value={d.UserID}>{d.UserName}</option>
               ))}
@@ -166,21 +176,21 @@ export default function AdminReviewList() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Trạng thái</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
             <select
               name="is_corrected"
               value={filters.is_corrected}
               onChange={handleFilterChange}
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
             >
-              <option value="">Tất cả</option>
-              <option value="false">Chính xác</option>
-              <option value="true">Đã sửa nhãn</option>
+              <option value="">All</option>
+              <option value="false">Correct</option>
+              <option value="true">Corrected</option>
             </select>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Từ ngày</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">From Date</label>
             <input
               type="date"
               name="start_date"
@@ -191,7 +201,7 @@ export default function AdminReviewList() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Đến ngày</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">To Date</label>
             <div className="flex gap-2">
               <input
                 type="date"
@@ -203,7 +213,7 @@ export default function AdminReviewList() {
               <button
                 onClick={resetFilters}
                 className="h-10 w-10 flex items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white hover:scale-110 active:scale-95 transition-all shadow-sm"
-                title="Xóa bộ lọc"
+                title="Clear Filters"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
               </button>
@@ -217,13 +227,13 @@ export default function AdminReviewList() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Hình ảnh</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">AI Dự đoán</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Image</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">AI Prediction</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Confidence</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Bác sĩ chốt</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Người duyệt</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Thời gian</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Doctor Final</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Approver</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Time</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -244,8 +254,8 @@ export default function AdminReviewList() {
                   <td colSpan={7} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                      <p className="text-gray-500 font-medium">Không tìm thấy dữ liệu phù hợp với bộ lọc.</p>
-                      <button onClick={resetFilters} className="text-indigo-600 text-sm font-bold hover:underline">Xóa tất cả bộ lọc</button>
+                      <p className="text-gray-500 font-medium">No matching data found with the current filters.</p>
+                      <button onClick={resetFilters} className="text-indigo-600 text-sm font-bold hover:underline">Clear All Filters</button>
                     </div>
                   </td>
                 </tr>
@@ -291,12 +301,12 @@ export default function AdminReviewList() {
                       {review.is_corrected ? (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-md border border-orange-100 w-fit">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"></path></svg>
-                          Đã sửa
+                          Updated
                         </span>
                       ) : (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-100 w-fit">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          Chính xác
+                          Correct
                         </span>
                       )}
                     </td>
@@ -323,7 +333,7 @@ export default function AdminReviewList() {
         {!isLoading && total > 0 && (
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
             <div className="text-xs text-gray-500 font-medium">
-              Hiển thị <span className="font-bold">{(currentPage - 1) * pageSize + 1}</span> - <span className="font-bold">{Math.min(currentPage * pageSize, total)}</span> / <span className="font-bold">{total}</span>
+              Showing <span className="font-bold">{(currentPage - 1) * pageSize + 1}</span> - <span className="font-bold">{Math.min(currentPage * pageSize, total)}</span> / <span className="font-bold">{total}</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -374,9 +384,9 @@ export default function AdminReviewList() {
       <div className="flex items-center justify-between text-xs text-gray-400 font-medium px-2">
         <p className="flex items-center gap-1.5">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          Chỉ Superadmin mới có quyền truy cập màn hình quản trị này.
+          Only Superadmins have access to this admin panel.
         </p>
-        <p>Tổng số bản ghi: <span className="text-gray-600 font-bold">{total}</span></p>
+        <p>Total Records: <span className="text-gray-600 font-bold">{total}</span></p>
       </div>
 
       {/* Review Detail Modal */}
@@ -397,7 +407,7 @@ export default function AdminReviewList() {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-gray-900">Chi tiết ca Review #{selectedReview.id}</h2>
+                  <h2 className="text-xl font-black text-gray-900">Review Details #{selectedReview.id}</h2>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedReview.filename}</p>
                 </div>
               </div>
@@ -418,7 +428,7 @@ export default function AdminReviewList() {
                   <div className={`grid gap-4 ${selectedReview.doctor_final === 'Pneumonia' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {/* Original Image */}
                     <div className="space-y-2">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Ảnh gốc (Input)</p>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Original Image (Input)</p>
                       <div className="aspect-square bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-inner group relative">
                         <img 
                           src={`http://127.0.0.1:8000/${selectedReview.image_path}`} 
@@ -431,7 +441,7 @@ export default function AdminReviewList() {
                     {/* Annotation Image (Only for Pneumonia) */}
                     {selectedReview.doctor_final === 'Pneumonia' && (
                       <div className="space-y-2">
-                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest text-center">Bác sĩ Review (Bounding Boxes)</p>
+                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest text-center">Doctor Review (Bounding Boxes)</p>
                         <div className="aspect-square bg-black rounded-2xl overflow-hidden border border-blue-100 shadow-inner relative group">
                           <AnnotationCanvas 
                             imagePath={selectedReview.image_path} 
@@ -447,7 +457,7 @@ export default function AdminReviewList() {
                     <div className="p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
                       <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        Ghi chú từ bác sĩ
+                        Doctor's Notes
                       </h4>
                       <p className="text-sm text-gray-700 italic leading-relaxed">"{selectedReview.note}"</p>
                     </div>
@@ -458,16 +468,16 @@ export default function AdminReviewList() {
                 <div className="lg:col-span-4 space-y-6">
                   {/* Status Badge */}
                   <div className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 text-center ${selectedReview.is_corrected ? 'border-rose-100 bg-rose-50/30' : 'border-emerald-100 bg-emerald-50/30'}`}>
-                    <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${selectedReview.is_corrected ? 'text-rose-500' : 'text-emerald-500'}`}>Trạng thái khớp nhãn</span>
+                    <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${selectedReview.is_corrected ? 'text-rose-500' : 'text-emerald-500'}`}>Status</span>
                     <span className={`text-xl font-black ${selectedReview.is_corrected ? 'text-rose-700' : 'text-emerald-700'}`}>
-                      {selectedReview.is_corrected ? 'Đã sửa nhãn' : 'Chính xác'}
+                      {selectedReview.is_corrected ? 'Corrected' : 'Accurate'}
                     </span>
                   </div>
 
                   {/* Comparisons */}
                   <div className="space-y-3">
                     <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Dự đoán của AI</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">AI Prediction</p>
                       <div className="flex items-center justify-between">
                         <span className="font-black text-gray-700">{selectedReview.ai_predicted}</span>
                         <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">{selectedReview.confidence.toFixed(1)}%</span>
@@ -475,7 +485,7 @@ export default function AdminReviewList() {
                     </div>
                     
                     <div className="p-4 rounded-2xl bg-gray-900 border border-gray-800 shadow-xl">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Kết luận bác sĩ</p>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Doctor's Conclusion</p>
                       <div className="flex items-center justify-between">
                         <span className="font-black text-white text-lg">{selectedReview.doctor_final}</span>
                         <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
@@ -492,7 +502,7 @@ export default function AdminReviewList() {
                         {selectedReview.doctor_name?.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Người duyệt chuyên khoa</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Doctor</p>
                         <p className="text-sm font-black text-gray-900">{selectedReview.doctor_name}</p>
                       </div>
                     </div>
@@ -502,7 +512,7 @@ export default function AdminReviewList() {
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Ngày giờ Review</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Review Date and Time</p>
                         <p className="text-sm font-black text-gray-900">
                           {new Date(selectedReview.reviewed_at).toLocaleDateString('vi-VN')} {new Date(selectedReview.reviewed_at).toLocaleTimeString('vi-VN')}
                         </p>
