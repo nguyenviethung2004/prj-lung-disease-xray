@@ -125,19 +125,64 @@ export default function DocumentManagementPage() {
     setIsApproveDialogOpen(true);
   };
 
+  const startPolling = (docId: number, fileName: string) => {
+    console.log(`[Polling] Started for Doc ${docId}: ${fileName}`);
+    const interval = setInterval(async () => {
+      try {
+        // Add timestamp to avoid browser cache
+        const data = await apiFetch(`/documents/?_t=${Date.now()}`);
+        const updatedDoc = data.find((d: any) => d.DocumentID == docId);
+        
+        console.log(`[Polling] Doc ${docId} status: ${updatedDoc?.Status}`);
+        
+        if (updatedDoc) {
+          // Luôn cập nhật state để sync UI (ví dụ nếu có doc khác thay đổi)
+          setDocs(data || []);
+
+          if (updatedDoc.Status === 'Done') {
+            showToast(`Document "${fileName}" processing finished!`, "success");
+            clearInterval(interval);
+          } else if (updatedDoc.Status === 'Error') {
+            showToast(`Document "${fileName}" processing failed!`, "error");
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+        clearInterval(interval);
+      }
+    }, 3000); // Check every 3s
+    
+    // Auto-clear after 5 minutes
+    setTimeout(() => {
+      clearInterval(interval);
+      console.log(`[Polling] Auto-stopped for Doc ${docId}`);
+    }, 300000);
+  };
+
   const confirmApprove = async () => {
     if (!docToProcess) return;
+    
+    // Find filename for the toast
+    const doc = docs.find(d => d.DocumentID === docToProcess);
+    const fileName = doc?.FileName || "Document";
+
     setIsSubmitting(true);
     try {
       await apiFetch(`/documents/admin/${docToProcess}/process`, { method: "POST" });
 
-      // Đóng dialog và xóa trạng thái ngay lập tức để màn hình không bị "đơ"
       setIsApproveDialogOpen(false);
-      setDocToProcess(null);
-      showToast("Document approved and processing started!");
+      showToast(`Approval successful! "${fileName}" is being processed in background.`, "info");
 
-      // Sau đó mới load lại dữ liệu ở ngầm
-      await fetchDocuments();
+      // Update local state immediately so button disappears
+      setDocs(prev => prev.map(d => 
+        d.DocumentID === docToProcess ? { ...d, Status: 'Processing' } : d
+      ));
+
+      // Start polling for "Done" status
+      startPolling(docToProcess, fileName);
+      
+      setDocToProcess(null);
     } catch (error: any) {
       showToast(error.message || "Failed to approve document", "error");
     } finally {
@@ -366,8 +411,18 @@ export default function DocumentManagementPage() {
                       {new Date(doc.UploadedAt).toLocaleDateString('vi-VN')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${doc.Status === "Done" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
-                        }`}>
+                      <span className={`
+                        flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider 
+                        ${doc.Status === "Done" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : 
+                          doc.Status === "Processing" ? "bg-amber-50 text-amber-600 border border-amber-100" : 
+                          "bg-blue-50 text-blue-600 border border-blue-100"}
+                      `}>
+                        {doc.Status === "Processing" && (
+                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        )}
                         {doc.Status}
                       </span>
                     </td>

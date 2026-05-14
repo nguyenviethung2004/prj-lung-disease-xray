@@ -8,6 +8,8 @@ from services import document_service
 from schemas.document_schema import DocumentResponseSchema, DocumentUpdateSchema
 from services.rag_service import process_document_to_qdrant
 from core.exceptions import AppException
+from fastapi import BackgroundTasks
+from core.db_session import AsyncSessionLocal
 
 
 router = APIRouter(
@@ -147,40 +149,70 @@ async def update_document(
 
 
 
+async def run_process_document(document_id: int, user_id: str):
+    """
+    Hàm chạy ngầm để xử lý document (chunking, embedding, qdrant).
+    Sử dụng một session riêng biệt để tránh lỗi đóng session của request chính.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            doc = await document_service.get_document_by_id(db, document_id)
+            if not doc or not doc.FileData:
+                print(f"Background task error: Document {document_id} not found or has no data")
+                return
+
+            # Xử lý Qdrant
+            await process_document_to_qdrant(
+                session=db,
+                file_bytes=doc.FileData,
+                user_id=user_id,
+                document_id=document_id,
+                file_name=doc.FileName,
+                namespace="global",
+                is_public=True
+            )
+            
+            # Cập nhật trạng thái Done
+            doc.Status = 'Done'
+            await db.commit()
+            print(f"Background task success: Document {document_id} processed successfully")
+        except Exception as e:
+            print(f"Background task error: {str(e)}")
+            # Có thể thêm logic lưu log lỗi vào DB nếu cần
+
 @router.post("/admin/{document_id}/process", dependencies=[Depends(RoleChecker(["admin", "Superadmin"]))])
 async def process_document_now(
     document_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
     payload: dict = Depends(get_current_payload)
 ):
     """
-    Trực tiếp chunk PDF, nhúng và đưa lên Pinecone + DB.
+    Kích hoạt tiến trình chunk PDF và nhúng vào Qdrant chạy ngầm.
     """
-    
-    
     user_id = payload.get("sub")
     doc = await document_service.get_document_by_id(db, document_id)
     
+    if not doc:
+        raise AppException(message="Document not found", status_code=404)
+        
     if not doc.FileData:
         return {"success": False, "message": "Document file data is missing"}
 
     if doc.Status == 'Done':
         raise AppException(message="Document already processed", status_code=400)
-    result = await process_document_to_qdrant(
-        session=db,
-        file_bytes=doc.FileData,
-        user_id=str(user_id),
-        document_id=document_id,
-        file_name=doc.FileName,
-        namespace="global",
-        is_public=True
-    )
     
-    # Cập nhật trạng thái
-    doc.Status = 'Done'
+    if doc.Status == 'Processing':
+        raise AppException(message="Document is already being processed", status_code=400)
+
+    # Cập nhật trạng thái sang Processing ngay lập tức
+    doc.Status = 'Processing'
     await db.commit()
     
-    return result
+    # Chuyển sang chạy ngầm
+    background_tasks.add_task(run_process_document, document_id, str(user_id))
+    
+    return {"success": True, "message": "Document processing started in background"}
 
 from services.rag_service import search_hybrid_qdrant
 from typing import List, Dict, Any
