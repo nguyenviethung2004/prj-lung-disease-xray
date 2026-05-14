@@ -75,6 +75,7 @@ export default function DashboardPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isReviewed, setIsReviewed] = useState(false);
+  const [doctorNote, setDoctorNote] = useState("");
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "bot"; text: string }[]>([
     { role: "bot", text: "Hello! How can I help you with your annotations today?" }
   ]);
@@ -478,7 +479,7 @@ export default function DashboardPage() {
         PredictionID: predictionId,
         DoctorID: user.id || user.UserID,
         FinalClassID: finalClassId,
-        DoctorNote: "Doctor reviewed and confirmed/corrected label.",
+        DoctorNote: doctorNote || "Doctor reviewed and confirmed/corrected label.",
         IsCorrected: isCorrected,
         BoundingBoxes: annotations.length > 0 ? JSON.stringify(annotations) : null
       };
@@ -490,6 +491,7 @@ export default function DashboardPage() {
 
       showToast("Evaluation results saved successfully!");
       setIsReviewed(true);
+      setDoctorNote(""); // Reset note after success
       fetchPendingImages(); // Refresh the pending list
     } catch (error: any) {
       console.error("Error saving review results:", error);
@@ -945,6 +947,20 @@ export default function DashboardPage() {
                       </div>
                     </label>
                   </div>
+                </div>
+
+                {/* Doctor Note Section */}
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <h4 className="font-semibold text-[11px] text-gray-500 uppercase tracking-widest">Doctor's Notes</h4>
+                  </div>
+                  <textarea
+                    value={doctorNote}
+                    onChange={(e) => setDoctorNote(e.target.value)}
+                    placeholder="Write your professional observations here..."
+                    className="w-full h-24 p-3 text-[13px] text-gray-700 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none placeholder:text-gray-400"
+                  />
                 </div>
               </div>
             </div>
