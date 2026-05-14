@@ -40,21 +40,33 @@ def preprocess_image(input_data):
         # Assume it's a numpy array
         img_bgr = input_data
 
+    h, w = img_bgr.shape[:2]
     rgb_img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    rgb_img = cv2.resize(rgb_img, (IMAGE_SIZE, IMAGE_SIZE))
-    rgb_img_float = np.float32(rgb_img) / 255.0
+    
+    # Maintain aspect ratio with padding (letterboxing)
+    ratio = IMAGE_SIZE / max(h, w)
+    new_h, new_w = int(h * ratio), int(w * ratio)
+    resized = cv2.resize(rgb_img, (new_w, new_h))
+    
+    # Create black canvas and paste resized image in center
+    canvas = np.zeros((IMAGE_SIZE, IMAGE_SIZE, 3), dtype=np.uint8)
+    pad_y = (IMAGE_SIZE - new_h) // 2
+    pad_x = (IMAGE_SIZE - new_w) // 2
+    canvas[pad_y:pad_y+new_h, pad_x:pad_x+new_w] = resized
+    
+    rgb_img_float = np.float32(canvas) / 255.0
 
     transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
     ])
 
-    pil_img = Image.fromarray(rgb_img)
+    pil_img = Image.fromarray(canvas)
     tensor = transform(pil_img).unsqueeze(0)
 
-    return tensor, rgb_img_float
+    # Return padding info to map back
+    return tensor, rgb_img_float, (pad_x, pad_y, new_w, new_h)
 
 
 def get_target_layer(model):
@@ -65,7 +77,7 @@ def get_target_layer(model):
 
 
 def inference_with_gradcam(model, input_data, device):
-    input_tensor, rgb_img = preprocess_image(input_data)
+    input_tensor, rgb_img_padded, (px, py, nw, nh) = preprocess_image(input_data)
     input_tensor = input_tensor.to(device)
 
     with torch.no_grad():
@@ -80,7 +92,19 @@ def inference_with_gradcam(model, input_data, device):
     cam = GradCAM(model=model, target_layers=get_target_layer(model))
     targets = [ClassifierOutputTarget(class_idx)]
 
+    # Generate the activation mask for the padded image
     grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0]
+    
+    # Crop the padding back to get ONLY the lung area
+    grayscale_lung = grayscale_cam[py:py+nh, px:px+nw]
+    
+    # Resize grayscale mask back to original input size
+    orig_h, orig_w = (input_data.shape[:2]) if not isinstance(input_data, str) else (cv2.imread(input_data).shape[:2])
+    grayscale_final = cv2.resize(grayscale_lung, (orig_w, orig_h))
 
-    gradcam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-    return rgb_img, gradcam_image, label, confidence
+    # Generate colorized gradcam image (standard way)
+    gradcam_image_full = show_cam_on_image(rgb_img_padded, grayscale_cam, use_rgb=True)
+    gradcam_image_cropped = gradcam_image_full[py:py+nh, px:px+nw]
+    gradcam_image_final = cv2.resize(gradcam_image_cropped, (orig_w, orig_h))
+
+    return grayscale_final, gradcam_image_final, label, confidence

@@ -47,7 +47,7 @@ def process_ai_pipeline(image_bgr):
     logger.info(f"Đã hoàn thành segmentation. Crop offsets: x={crop_x1}, y={crop_y1}")
 
     # ================= CLASSIFICATION =================
-    _, gradcam_rgb, label, confidence = inference_with_gradcam(
+    grayscale_cam, gradcam_rgb, label, confidence = inference_with_gradcam(
         models_manager.classification_model,
         cropped_bgr,
         models_manager.device
@@ -64,14 +64,29 @@ def process_ai_pipeline(image_bgr):
         logger.info("Kết quả là Normal, không cần chạy detection")
 
     elif label == "COVID-19":
-        # Resize gradcam_rgb (đang ở size 224x224) về lại kích thước vùng crop
-        crop_h, crop_w = cropped_bgr.shape[:2]
-        gradcam_resized = cv2.resize(gradcam_rgb, (crop_w, crop_h))
-        gradcam_bgr = cv2.cvtColor(gradcam_resized, cv2.COLOR_RGB2BGR)
+        # 1. Colorize the heatmap
+        heatmap_bgr = cv2.applyColorMap(np.uint8(255 * grayscale_cam), cv2.COLORMAP_JET)
         
-        # Overlay heatmap lên vùng crop trên ảnh gốc
-        result_image_bgr[crop_y1:crop_y1+crop_h, crop_x1:crop_x1+crop_w] = gradcam_bgr
-        logger.info("Kết quả là COVID-19, đã overlay Grad-CAM lên ảnh gốc")
+        # 2. Use grayscale_cam as the alpha mask (normalized 0.0 to 1.0)
+        # Smooth the mask to make the transition even more natural
+        mask = cv2.GaussianBlur(grayscale_cam, (15, 15), 0)
+        mask = np.expand_dims(mask, axis=-1) # Shape (H, W, 1)
+        
+        # 3. Perform pixel-wise alpha blending on the ROI
+        h_h, h_w = heatmap_bgr.shape[:2]
+        roi = image_original_bgr[crop_y1:crop_y1+h_h, crop_x1:crop_x1+h_w].astype(float)
+        heatmap_f = heatmap_bgr.astype(float)
+        
+        # Blend: original * (1 - mask*alpha) + heatmap * (mask*alpha)
+        # We cap the max intensity of heatmap at 0.5 for better visibility of lungs
+        alpha_intensity = 0.5 
+        blended_roi = roi * (1.0 - mask * alpha_intensity) + heatmap_f * (mask * alpha_intensity)
+        blended_roi = np.clip(blended_roi, 0, 255).astype(np.uint8)
+        
+        # 4. Paste back
+        result_image_bgr[crop_y1:crop_y1+h_h, crop_x1:crop_x1+h_w] = blended_roi
+        
+        logger.info("Kết quả là COVID-19, đã hòa trộn pixel-wise mượt mà không còn vệt xanh")
 
     else:
         detect_image_rgb, detection_results = inference_faster_rcnn(
