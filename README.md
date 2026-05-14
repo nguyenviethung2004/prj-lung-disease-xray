@@ -1,168 +1,228 @@
-# Lung Disease X-Ray AI System 🫁🔬
+# 🩺 Lung Disease Analysis System (AI-Powered X-Ray Diagnostic)
 
-Hệ thống hỗ trợ chẩn đoán bệnh lý phổi qua hình ảnh X-quang tích hợp Trí tuệ nhân tạo (AI) và Hệ thống hỏi đáp thông minh (RAG).
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![FastAPI](https://img.shields.io/badge/Backend-FastAPI-green)
+![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-black)
+![PyTorch](https://img.shields.io/badge/AI-PyTorch-red)
 
-## 🌟 Giới thiệu
-Dự án là một nền tảng y tế hiện đại, kết hợp sức mạnh của Computer Vision để phân tích hình ảnh X-quang phổi và Large Language Models (LLM) để cung cấp khả năng tra cứu, tư vấn y khoa dựa trên tài liệu. Hệ thống giúp bác sĩ tối ưu hóa quy trình chẩn đoán và quản lý hồ sơ bệnh án một cách hiệu quả.
+Hệ thống hỗ trợ chẩn đoán bệnh lý phổi qua ảnh X-quang tích hợp trí tuệ nhân tạo (AI). Dự án sử dụng các mô hình học sâu (Deep Learning) tiên tiến để phân loại bệnh, phát hiện vùng tổn thương và giải thích kết quả thông qua bản đồ nhiệt (Heatmap).
 
-## 🏗 Kiến trúc hệ thống
+---
+
+## 🏗 Kiến trúc hệ thống toàn diện
+
 ```mermaid
-graph TD
-    User((Bác sĩ / Kỹ thuật viên)) --> Frontend[Next.js Dashboard]
-    Frontend --> Backend{FastAPI Server}
-    
-    subgraph "AI Engine"
-        Backend --> Classification[Densenet Classification]
-        Backend --> Detection[Faster R-CNN Detection]
-        Backend --> Segmentation[U-Net Segmentation]
+graph TB
+    subgraph "NGƯỜI DÙNG & TƯƠNG TÁC"
+        DOC((Bác sĩ))
+        ADM((Admin/Superadmin))
     end
 
-    subgraph "RAG Engine"
-        Backend --> LLM[Groq / LLM]
-        LLM --> VectorDB[(Qdrant Vector DB)]
-        VectorDB --- Docs[Medical Documents]
+    subgraph "FRONTEND (Next.js 14)"
+        UI_D[Dashboard Bác sĩ]
+        UI_A[Admin Panel]
+        CHAT[Chatbot UI]
     end
 
-    subgraph "Data Persistence"
-        Backend --> MySQL[(MySQL Database)]
-        Backend --> Redis((Redis))
+    subgraph "BACKEND (FastAPI Core)"
+        API[API Gateway / Auth]
+        PIPE[AI Processing Pipeline]
+        RAG_E[Hybrid RAG Engine]
+        ADM_S[Admin Services]
     end
+
+    subgraph "AI ANALYSIS (3-Model Stack)"
+        M1[UNet - Segmentation]
+        M2[DenseNet121 - Classification]
+        M3[Faster R-CNN - Detection]
+        M4[Grad-CAM - Explainability]
+    end
+
+    subgraph "RAG & KNOWLEDGE BASE"
+        DOC_M[Quản lý Document]
+        CHUNK[Text Chunking / Recursive]
+        subgraph "Hybrid Search Engine"
+            SEM[Semantic Search - Dense]
+            BM25[BM25 Search - Sparse]
+        end
+        VEC[(Qdrant Vector DB)]
+        LLM[LLM - Groq/Gemini]
+    end
+
+    subgraph "STORAGE"
+        DB[(MySQL - RDS)]
+        FS[File System - static/results]
+    end
+
+    %% Luồng Bác sĩ
+    DOC -->|1. Upload X-Ray| UI_D
+    UI_D -->|2. Analysis Request| API
+    API --> PIPE
+    PIPE --> M1 -->|Crop| M2 -->|Pneumonia| M3
+    M2 -->|COVID| M4
+    PIPE -->|3. Save Results| FS
+    DOC -->|Review & Note| DB
     
-    style Frontend fill:#f9f,stroke:#333,stroke-width:2px
-    style Backend fill:#69f,stroke:#333,stroke-width:2px
-    style AI Engine fill:#dfd,stroke:#333,stroke-dasharray: 5 5
-    style RAG Engine fill:#ffd,stroke:#333,stroke-dasharray: 5 5
+    %% Luồng Chatbot & RAG
+    DOC -->|4. Ask Question| CHAT
+    CHAT --> RAG_E
+    RAG_E --> SEM & BM25
+    SEM & BM25 -->|Re-ranking| VEC
+    VEC -->|Context| LLM
+    LLM -->|5. Medical Advice| CHAT
+
+    %% Luồng Admin
+    ADM -->|6. Quản lý hệ thống| UI_A
+    UI_A --> ADM_S
+    ADM_S -->|Quản lý User| DB
+    ADM_S -->|Verify & Chunk Document| DOC_M
+    DOC_M --> CHUNK --> VEC
+    ADM_S -->|Theo dõi Review & Thống kê Model| DB
+
+    %% Kết nối chung
+    API --> DB
+    PIPE --> DB
 ```
 
-## ✨ Tính năng chính
-- **AI Inference**: Hệ thống đa nhiệm tích hợp:
-  - **Classification**: Phân loại các loại bệnh lý phổi (Pneumonia, Effusion, COVID-19, v.v.).
-  - **Object Detection**: Phát hiện và khoanh vùng (bounding box) các tổn thương trên phổi.
-  - **Segmentation**: Phân vùng chi tiết các khu vực bị ảnh hưởng (sử dụng U-Net).
-  - Tích hợp kỹ thuật **Grad-CAM** để giải thích kết quả dự đoán của mô hình.
-- **RAG Chatbot**: Hệ thống hỏi đáp thông minh dựa trên tài liệu y khoa được tải lên, sử dụng Qdrant làm Vector Database (Hybrid Search).
-- **Doctor Review**: Hệ thống quản lý và phê duyệt kết quả chẩn đoán từ bác sĩ, cho phép chỉnh sửa bounding box và ghi chú chuyên môn.
-- **Document Management**: Quản lý tài liệu y khoa, tự động trích xuất và indexing dữ liệu phục vụ tra cứu.
-- **User Management**: Hệ thống phân quyền người dùng (Bác sĩ, Kỹ thuật viên, Quản trị viên).
+---
 
-## 🔄 Quy trình chẩn đoán
-```mermaid
-sequenceDiagram
-    participant User as Bác sĩ
-    participant FE as Frontend (Next.js)
-    participant BE as Backend (FastAPI)
-    participant AI as AI Models
-    participant DB as MySQL/Qdrant
+## 🌟 Tính năng nổi bật
 
-    User->>FE: Tải lên ảnh X-quang
-    FE->>BE: Gửi request chẩn đoán
-    BE->>AI: Chạy Classification & Detection
-    AI-->>BE: Trả về kết quả (Bệnh lý, Bounding Box)
-    BE->>DB: Lưu kết quả chẩn đoán tạm thời
-    BE-->>FE: Hiển thị kết quả cho bác sĩ
-    User->>FE: Xác nhận/Chỉnh sửa kết quả
-    FE->>BE: Lưu review cuối cùng
-    BE->>DB: Cập nhật trạng thái 'Reviewed'
-```
+### 1. Phân tích AI đa tầng (Multi-stage AI Pipeline)
+*   **Segmentation**: Tự động nhận diện và cắt vùng phổi từ ảnh X-quang gốc (UNet).
+*   **Classification**: Phân loại ảnh thành 3 nhóm: **Normal**, **COVID-19**, và **Pneumonia** (DenseNet121).
+*   **Object Detection**: Tự động khoanh vùng (Bounding Box) các vùng tổn thương (Faster R-CNN).
+*   **XAI (Grad-CAM)**: Bản đồ nhiệt được hòa trộn mượt mà (Alpha Blending) giúp bác sĩ chẩn đoán chính xác.
+
+### 2. Hệ thống RAG (Retrieval-Augmented Generation) 🆕
+*   **Hybrid Search**: Kết hợp sức mạnh của **Semantic Search** (Dense) và **BM25** (Sparse).
+*   **Kiến thức Y khoa**: Tra cứu nhanh chóng các tài liệu y tế từ Qdrant Vector DB dựa trên ngữ cảnh thực tế.
+*   **Độ chính xác cao**: Giảm thiểu hiện tượng ảo giác của LLM bằng dữ liệu y khoa tin cậy.
+
+### 3. Hệ thống quản trị & Giám sát (Admin & Monitoring) 🆕
+*   **Review Tracking**: Admin có thể xem chi tiết các thay đổi, ghi chú (notes) của bác sĩ so với dự đoán ban đầu của AI để đánh giá độ chính xác thực tế.
+*   **Document Verification**: Quy trình duyệt tài liệu y khoa nghiêm ngặt trước khi đưa vào bộ nhớ RAG (Chunking & Vectorize).
+*   **User Management**: Quản lý tài khoản, phân quyền Superadmin/Doctor và theo dõi lịch sử hoạt động.
+*   **Model Statistics**: Thống kê hiệu suất dự đoán của từng phiên bản mô hình AI.
+
+### 4. Quản lý hồ sơ & UI/UX
+*   Tải lên và lưu trữ ảnh X-quang định dạng chất lượng cao.
+*   Giao diện **Glassmorphism** sang trọng, hỗ trợ tương tác ảnh (Zoom/Pan/Reset).
+*   Hệ thống thông báo Progress Bar thời gian thực.
+
+---
 
 ## 🛠 Công nghệ sử dụng
 
 ### Backend (FastAPI)
-- **Framework**: FastAPI (Python)
-- **Database**: MySQL (SQLAlchemy ORM)
-- **Vector DB**: Qdrant (Hybrid Search - Dense & Sparse)
-- **Task Queue**: Celery & Redis (cho các tác vụ nặng như trích xuất PDF)
-- **AI/ML**: PyTorch, TorchXRayVision, TIMM, OpenCV
-- **LLM Integration**: Groq API
-- **Monitoring**: Weights & Biases (W&B)
+- **Framework**: FastAPI (Python 3.10+)
+- **AI/ML Stack**: `PyTorch`, `TorchXRayVision`, `OpenCV`.
+- **RAG Stack**: 
+    - `Qdrant`: Vector Database cho tìm kiếm Hybrid.
+    - `Groq / Gemini API`: Tích hợp Large Language Models.
+    - `Sentence-Transformers`: Tạo embeddings cho Semantic Search.
+- **Database**: MySQL (SQLAlchemy ORM).
+- **Security**: JWT Authentication, RBAC.
 
 ### Frontend (Next.js)
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS, Lucide Icons, Glassmorphism UI
-- **State Management**: React Context / Hooks
+- **Framework**: Next.js 14 (App Router).
+- **Language**: TypeScript.
+- **Styling**: Tailwind CSS & Headless UI.
+
+---
 
 ## 📂 Cấu trúc dự án
+
 ```text
 prj-lung-disease-xray/
 ├── backend/                # Source code FastAPI
-│   ├── ai_models/          # Quản lý các mô hình AI (Classification, Detection, Segmentation)
-│   ├── core/               # Cấu hình database, logger, exceptions
-│   ├── models/             # Khai báo các bảng cơ sở dữ liệu (SQLAlchemy Models)
-│   ├── router/             # Định nghĩa API endpoints
-│   ├── services/           # Logic xử lý nghiệp vụ
-│   ├── schemas/            # Pydantic schemas cho validation dữ liệu
-│   ├── rag/                # Xử lý RAG và Vector DB
-│   ├── llm/                # Tích hợp Large Language Models (Groq, v.v.)
-│   ├── utils/              # Các hàm tiện ích (Embedding, Qdrant client, v.v.)
-│   └── app.py              # Entry point của backend
+│   ├── ai_models/          # Quản lý các mô hình AI
+│   ├── rag/                # Hệ thống RAG (Hybrid Search, BM25)
+│   ├── llm/                # Tích hợp LLM (Groq, Gemini)
+│   ├── core/               # App config, DB session, AI Manager
+│   ├── models/             # SQLAlchemy Database Models
+│   ├── schemas/            # Pydantic schemas (Request/Response)
+│   ├── router/             # API Endpoints (Auth, Images, Analysis, Admin)
+│   ├── services/           # AI Pipeline logic & Business logic
+│   └── app.py              # Application Entry Point
 ├── front-end-medical/      # Source code Next.js
-│   ├── app/                # Pages & Layouts
-│   ├── components/         # UI Components
-│   └── lib/                # Utilities & API Fetching
-├── dataset/                # Dữ liệu mẫu/huấn luyện
-├── static/                 # File tĩnh (ảnh upload, kết quả)
-└── requirements.txt        # Thư viện Python cần thiết
+│   ├── app/                # Dashboard, Reviews, Admin, Users
+│   ├── components/         # UI Components (Canvas, Toast, Table)
+│   ├── context/            # Global State (Auth, Toast)
+│   └── lib/                # API Client và Utils
 ```
+
+---
 
 ## 🚀 Hướng dẫn cài đặt
 
-### 1. Cài đặt Backend
-1. Di chuyển vào thư mục backend:
-   ```bash
-   cd backend
-   ```
-2. Tạo môi trường ảo và cài đặt thư viện:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Trên Windows: venv\Scripts\activate
-   pip install -r ../requirements.txt
-   ```
-3. Cấu hình file `.env`:
-   ```env
-   # Database
-   MYSQL_HOST=localhost
-   MYSQL_PORT=3306
-   MYSQL_DB=lung_ai_system
-   MYSQL_USER=root
-   MYSQL_PASSWORD=your_password
+### 1. Backend
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
-   # Redis (Optional for Celery)
-   REDIS_URL=redis://localhost:6379/0
+# Cấu hình môi trường (.env)
+DATABASE_URL=mysql+aiomysql://user:pass@localhost/db_name
+QDRANT_URL=http://localhost:6333
+GROQ_API_KEY=your_key_here
 
-   # AI & RAG
-   URL_QRDANT=your_qdrant_url
-   API_KEY_QRDANT=your_qdrant_key
-   GROQ_API_KEY=your_groq_api_key
-   
-   # Model Paths
-   CLASSIFICATION_MODEL_PATH=path/to/your/model.pth
-   DETECTION_MODEL_PATH=path/to/your/model.pth
-   SEGMENTATION_MODEL_PATH=path/to/your/model.pt
-   ```
-4. Khởi chạy server:
-   ```bash
-   python app.py
-   ```
+uvicorn app:app --reload --port 8000
+```
 
-### 2. Cài đặt Frontend
-1. Di chuyển vào thư mục frontend:
-   ```bash
-   cd front-end-medical
-   ```
-2. Cài đặt dependencies:
-   ```bash
-   npm install
-   ```
-3. Khởi chạy môi trường development:
-   ```bash
-   npm run dev
-   ```
+### 2. Frontend
+```bash
+cd front-end-medical
+npm install
+npm run dev
+```
 
-## 📊 API Documentation
-Sau khi khởi chạy backend, bạn có thể truy cập tài liệu API tại:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+---
 
-## 📝 License
-Dự án được phát triển cho mục đích nghiên cứu và học tập.
+## 👨‍⚕️ Quy trình làm việc (Workflow)
+
+1. **Upload**: Bác sĩ tải ảnh X-quang lên.
+2. **AI Analysis**: Tự động chạy Pipeline Segmentation -> Classification -> Detection.
+3. **Knowledge Retrieval (RAG)**: Hệ thống tra cứu tài liệu y khoa liên quan dựa trên nhãn bệnh tìm được qua Hybrid Search.
+4. **Review & Approve**: Bác sĩ xem kết quả AI + Tài liệu tham khảo và lưu hồ sơ.
+
+---
+
+## ⚙️ Chi tiết AI Pipeline
+
+```mermaid
+sequenceDiagram
+    participant IMG as X-Ray Image
+    participant SEG as UNet (Segmentation)
+    participant CLS as DenseNet (Classification)
+    participant DET as Faster R-CNN (Detection)
+    participant XAI as Grad-CAM (Heatmap)
+    participant OUT as Final Result
+
+    IMG->>SEG: Gửi ảnh gốc
+    SEG->>SEG: Tách vùng phổi (Masking)
+    SEG->>CLS: Gửi vùng phổi đã cắt (Crop)
+    
+    par Classification & Interpretability
+        CLS->>CLS: Dự đoán nhãn (Normal/COVID/Pneumonia)
+        CLS->>XAI: Tạo activation map (nếu COVID/Pneumonia)
+    end
+    
+    opt Nếu là Pneumonia
+        CLS->>DET: Kích hoạt mô hình Detection
+        DET->>DET: Khoanh vùng tổn thương (Bbox)
+    end
+    
+    XAI-->>OUT: Overlay Heatmap
+    DET-->>OUT: Mapped Bboxes
+    CLS-->>OUT: Prediction Label
+```
+
+---
+
+## 📝 Giấy phép
+Dự án được phát triển cho mục đích học thuật và hỗ trợ nghiên cứu y tế.
+
+---
+*Phát triển bởi đội ngũ dự án Lung Disease Analysis.*
