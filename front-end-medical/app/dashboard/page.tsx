@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<number | null>(null);
-  
+
   // Pending Images State
   const [pendingImages, setPendingImages] = useState<any[]>([]);
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
@@ -119,7 +119,7 @@ export default function DashboardPage() {
   const handleSelectPendingImage = (item: any) => {
     // Load the selected pending image into the dashboard
     const baseUrl = "http://localhost:8000";
-    
+
     const cleanPath = (p: string) => {
       if (!p) return "";
       if (p.startsWith('http')) return p;
@@ -129,14 +129,14 @@ export default function DashboardPage() {
       if (path.startsWith('/')) path = path.substring(1);
       return `${baseUrl}/${path}`;
     };
-    
+
     setSourceUrl(cleanPath(item.image_path));
     setAnalyzedUrl(cleanPath(item.heatmap_path));
     setPredictionId(item.prediction_id);
     setConfidenceScore(item.confidence);
     setAiInitialLabel(item.ai_label);
     setSelectedLabel(item.ai_label);
-    
+
     // Load AI boxes if present in the pending item
     if (item.ai_boxes) {
       try {
@@ -168,7 +168,7 @@ export default function DashboardPage() {
   };
 
   // Dynamic Label Mapping from DB
-  const [dbClasses, setDbClasses] = useState<{id: number, name: string}[]>([]);
+  const [dbClasses, setDbClasses] = useState<{ id: number, name: string }[]>([]);
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -291,7 +291,7 @@ export default function DashboardPage() {
             showToast("AI không tìm thấy vùng tổn thương cụ thể mặc dù dự đoán là Pneumonia.", "warning");
           }
         }
-        
+
         // Refresh pending reviews count/list
         fetchPendingImages();
       } else {
@@ -495,7 +495,7 @@ export default function DashboardPage() {
       fetchPendingImages(); // Refresh the pending list
     } catch (error: any) {
       console.error("Error saving review results:", error);
-  showToast(error.message || "An error occurred while saving the results.", "error");
+      showToast(error.message || "An error occurred while saving the results.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -610,9 +610,9 @@ export default function DashboardPage() {
     setSubmittingDocId(docId);
     try {
       await apiFetch(`/documents/doctor/${docId}/submit`, { method: "PATCH" });
-      
+
       // Cập nhật trạng thái ngay lập tức trên UI (Optimistic Update)
-      setMyDocs(prev => prev.map(doc => 
+      setMyDocs(prev => prev.map(doc =>
         doc.DocumentID === docId ? { ...doc, IsSubmitted: true, Status: 'Pending' } : doc
       ));
 
@@ -693,7 +693,7 @@ export default function DashboardPage() {
               </svg>
               Chatbot AI
             </button>
-            
+
             <button
               onClick={() => {
                 setIsPendingModalOpen(true);
@@ -1102,25 +1102,25 @@ export default function DashboardPage() {
                   >
                     Delete All Boxes
                   </button>
-                    <button
-                      onClick={handleSaveReview}
-                      disabled={!predictionId || isExporting || isReviewed || (selectedLabel === "Pneumonia" && annotations.length === 0)}
-                      className={`flex-1 bg-indigo-600 text-white rounded-md py-2 text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg ${predictionId && !isReviewed && !(selectedLabel === "Pneumonia" && annotations.length === 0) ? 'shadow-indigo-200 ring-2 ring-indigo-500 ring-offset-2' : ''}`}
-                    >
-                      {isExporting ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Saving results...
-                        </>
-                      ) : isReviewed ? (
-                        "Results saved"
-                      ) : (
-                        "Save results"
-                      )}
-                    </button>
+                  <button
+                    onClick={handleSaveReview}
+                    disabled={!predictionId || isExporting || isReviewed || (selectedLabel === "Pneumonia" && annotations.length === 0)}
+                    className={`flex-1 bg-indigo-600 text-white rounded-md py-2 text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg ${predictionId && !isReviewed && !(selectedLabel === "Pneumonia" && annotations.length === 0) ? 'shadow-indigo-200 ring-2 ring-indigo-500 ring-offset-2' : ''}`}
+                  >
+                    {isExporting ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving results...
+                      </>
+                    ) : isReviewed ? (
+                      "Results saved"
+                    ) : (
+                      "Save results"
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1183,7 +1183,7 @@ export default function DashboardPage() {
                         <div className="flex flex-col items-center gap-2">
                           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path></svg>
                           <p className="text-sm font-bold text-indigo-900">{selectedPDF.name}</p>
-                          <button 
+                          <button
                             type="button"
                             onClick={(e) => {
                               e.preventDefault();
@@ -1204,7 +1204,7 @@ export default function DashboardPage() {
                       )}
                     </label>
                   </div>
-                  
+
                   <button
                     onClick={performUpload}
                     disabled={!selectedPDF || !docDescription.trim() || isUploadingDoc}
@@ -1283,7 +1283,7 @@ export default function DashboardPage() {
                             Approved
                           </span>
                         )}
-                        
+
                         <button
                           onClick={() => handleDeleteMyDoc(doc.DocumentID)}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
@@ -1341,15 +1341,15 @@ export default function DashboardPage() {
               {pendingImages.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {pendingImages.map((item) => (
-                    <div 
+                    <div
                       key={item.prediction_id}
                       onClick={() => handleSelectPendingImage(item)}
                       className="group flex gap-4 p-4 rounded-2xl border border-gray-100 bg-gray-50/30 hover:bg-white hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-500/5 transition-all cursor-pointer relative overflow-hidden"
                     >
                       <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0 border border-gray-100">
-                        <img 
-                          src={`http://127.0.0.1:8000/${item.image_path}`} 
-                          alt="X-ray" 
+                        <img
+                          src={`http://127.0.0.1:8000/${item.image_path}`}
+                          alt="X-ray"
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
                       </div>
@@ -1386,7 +1386,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="p-6 border-t border-gray-50 bg-gray-50/30 flex justify-end">
-              <button 
+              <button
                 onClick={() => setIsPendingModalOpen(false)}
                 className="px-6 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
               >
