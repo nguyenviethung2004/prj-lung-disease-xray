@@ -17,12 +17,7 @@ class Settings:
     REDIS_PORT=os.getenv("REDIS_PORT")
     REDIS_DB=os.getenv("REDIS_DB")
     REDIS_URL=os.getenv("REDIS_URL")
-    CELERY_BROKER_URL=os.getenv("CELERY_BROKER_URL")
-    CELERY_RESULT_BACKEND=os.getenv("CELERY_RESULT_BACKEND")
-    PINECONE_API_KEY=os.getenv("PINECONE_API_KEY")
     GROQ_API_KEY=os.getenv("GROQ_API_KEY")
-    BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
     # AI Models
     CLASSIFICATION_MODEL_PATH = os.getenv("CLASSIFICATION_MODEL_PATH")
     DETECTION_MODEL_PATH = os.getenv("DETECTION_MODEL_PATH")

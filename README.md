@@ -164,9 +164,26 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Cấu hình môi trường (.env)
-DATABASE_URL=mysql+aiomysql://user:pass@localhost/db_name
+SECRET_KEY=your-default-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=30
+
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DB=lung_disease_db
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
 QDRANT_URL=http://localhost:6333
-GROQ_API_KEY=your_key_here
+GROQ_API_KEY=your_groq_key
+
+# AI Models Paths
+CLASSIFICATION_MODEL_PATH=weights/classification.pth
+DETECTION_MODEL_PATH=weights/detection.pth
+SEGMENTATION_MODEL_PATH=weights/segmentation.pth
 
 uvicorn app:app --reload --port 8000
 ```
