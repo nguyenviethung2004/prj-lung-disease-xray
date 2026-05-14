@@ -79,10 +79,12 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 # ── CORS ──────────────────────────────────────────────────────────────────────
 # ── Static Files ──────────────────────────────────────────────────────────────
 # Mount static folder to serve uploaded images and results
-if not os.path.exists("static"):
-    os.makedirs("static")
-    os.makedirs("static/uploads")
-    os.makedirs("static/results")
+UPLOAD_DIR = "static/uploads"
+RESULT_DIR = "static/results"
+
+# exist_ok=True đảm bảo không báo lỗi nếu thư mục đã có, và KHÔNG xóa dữ liệu cũ
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(RESULT_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
