@@ -39,12 +39,12 @@ def process_ai_pipeline(image_bgr):
     image_original_bgr = image_bgr.copy()
 
     # ================= SEGMENTATION =================
-    _, cropped_bgr = predict_crop(
+    _, cropped_bgr, crop_x1, crop_y1 = predict_crop(
         models_manager.segmentation_model,
         image_bgr,
         models_manager.device
     )
-    logger.info("Đã hoàn thành segmentation")
+    logger.info(f"Đã hoàn thành segmentation. Crop offsets: x={crop_x1}, y={crop_y1}")
 
     # ================= CLASSIFICATION =================
     _, gradcam_rgb, label, confidence = inference_with_gradcam(
@@ -56,15 +56,22 @@ def process_ai_pipeline(image_bgr):
 
     analysis_type = "classification"
     boxes = []
+    # Khởi tạo result_image_bgr là ảnh gốc
+    result_image_bgr = image_original_bgr.copy()
 
     # ================= DECISION =================
     if label == "Normal":
-        result_image_bgr = image_original_bgr
         logger.info("Kết quả là Normal, không cần chạy detection")
 
     elif label == "COVID-19":
-        result_image_bgr = cv2.cvtColor(gradcam_rgb, cv2.COLOR_RGB2BGR)
-        logger.info("Kết quả là COVID-19, đã hiển thị Grad-CAM, không chạy detection")
+        # Resize gradcam_rgb (đang ở size 224x224) về lại kích thước vùng crop
+        crop_h, crop_w = cropped_bgr.shape[:2]
+        gradcam_resized = cv2.resize(gradcam_rgb, (crop_w, crop_h))
+        gradcam_bgr = cv2.cvtColor(gradcam_resized, cv2.COLOR_RGB2BGR)
+        
+        # Overlay heatmap lên vùng crop trên ảnh gốc
+        result_image_bgr[crop_y1:crop_y1+crop_h, crop_x1:crop_x1+crop_w] = gradcam_bgr
+        logger.info("Kết quả là COVID-19, đã overlay Grad-CAM lên ảnh gốc")
 
     else:
         detect_image_rgb, detection_results = inference_faster_rcnn(
@@ -72,10 +79,24 @@ def process_ai_pipeline(image_bgr):
             cropped_bgr,
             models_manager.device
         )
-        result_image_bgr = cv2.cvtColor(detect_image_rgb, cv2.COLOR_RGB2BGR)
-        logger.info("Kết quả là bệnh phổi, đã chạy detection")
+        # Map bboxes back to original image coordinates
+        mapped_boxes = []
+        for res in detection_results:
+            bbox = res["bbox"] # [x1, y1, x2, y2] relative to crop
+            mapped_bbox = [
+                bbox[0] + crop_x1,
+                bbox[1] + crop_y1,
+                bbox[2] + crop_x1,
+                bbox[3] + crop_y1
+            ]
+            res["bbox"] = mapped_bbox
+            mapped_boxes.append(res)
+        
+        # Với detection, ta không vẽ lên result_image_bgr vì frontend sẽ tự vẽ bbox
+        # Nhưng ta vẫn trả về ảnh gốc (đã copy vào result_image_bgr ở trên)
+        logger.info("Kết quả là bệnh phổi, đã chạy detection và map tọa độ về ảnh gốc")
         analysis_type = "detection"
-        boxes = detection_results
+        boxes = mapped_boxes
 
     processing_time = time.time() - start_time
     logger.info(f"Thời gian xử lý pipeline: {processing_time:.2f} giây")

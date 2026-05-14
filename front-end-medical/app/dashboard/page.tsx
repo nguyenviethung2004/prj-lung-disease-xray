@@ -252,7 +252,8 @@ export default function DashboardPage() {
       });
 
       if (data.success) {
-        // Display the result image (base64)
+        // Sử dụng lại result_image vì backend đã trả về ảnh full-size 
+        // có chứa heatmap (nếu là COVID) và tọa độ bbox đã được map về ảnh gốc.
         const resultUrl = `data:image/jpeg;base64,${data.result_image}`;
         setAnalyzedUrl(resultUrl);
 

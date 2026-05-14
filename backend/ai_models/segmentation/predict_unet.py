@@ -62,7 +62,7 @@ def crop_lung(image_bgr, mask_256,
     # fallback nếu mask quá nhỏ
     if np.sum(mask == 255) / (H * W) < min_area_ratio:
         pad_h, pad_w = int(H * 0.1), int(W * 0.1)
-        return image_bgr, image_bgr[pad_h:H-pad_h, pad_w:W-pad_w]
+        return image_bgr, image_bgr[pad_h:H-pad_h, pad_w:W-pad_w], pad_w, pad_h
 
     # convex hull
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -77,7 +77,7 @@ def crop_lung(image_bgr, mask_256,
     final_cnts, _ = cv2.findContours(hull_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if not final_cnts:
-        return image_bgr, image_bgr
+        return image_bgr, image_bgr, 0, 0
 
     all_pts = np.vstack(final_cnts)
     x, y, w, h = cv2.boundingRect(all_pts)
@@ -92,7 +92,7 @@ def crop_lung(image_bgr, mask_256,
 
     cropped = image_bgr[y1:y2, x1:x2]
 
-    return image_bgr, cropped
+    return image_bgr, cropped, x1, y1
 
 
 # =========================
@@ -107,6 +107,8 @@ def predict_crop(model, input_data, device=None):
     OUTPUT:
         - original image (numpy BGR)
         - cropped lung image (numpy BGR)
+        - x1 offset
+        - y1 offset
     """
     if device is None:
         device = next(model.parameters()).device
@@ -126,6 +128,6 @@ def predict_crop(model, input_data, device=None):
     mask = get_unet_mask(image_rgb, model, device)
 
     # crop
-    original, cropped = crop_lung(image_bgr, mask)
+    original, cropped, x1, y1 = crop_lung(image_bgr, mask)
 
-    return original, cropped
+    return original, cropped, x1, y1
