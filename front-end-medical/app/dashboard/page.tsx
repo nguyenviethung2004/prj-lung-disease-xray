@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   const [predictionId, setPredictionId] = useState<number | null>(null);
   const [aiInitialLabel, setAiInitialLabel] = useState<string>("");
+  const [currentImageName, setCurrentImageName] = useState<string>("");
   const [zoom, setZoom] = useState(1);
 
   // Chatbot State
@@ -136,6 +137,7 @@ export default function DashboardPage() {
     setConfidenceScore(item.confidence);
     setAiInitialLabel(item.ai_label);
     setSelectedLabel(item.ai_label);
+    setCurrentImageName(item.filename || "Pending Image");
 
     // Load AI boxes if present in the pending item
     if (item.ai_boxes) {
@@ -204,6 +206,7 @@ export default function DashboardPage() {
       setConfidenceScore(null);
       setPredictionId(null);
       setAiInitialLabel("");
+      setCurrentImageName(selectedFiles[0].name);
       setZoom(1);
       setSelectedLabel("");
       setIsReviewed(false);
@@ -213,26 +216,22 @@ export default function DashboardPage() {
 
   const handleSourceImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth, naturalHeight } = e.currentTarget;
-    if (images.length > 0) {
-      setImageInfo({
-        id: Date.now().toString(),
-        name: images[0].name,
-        width: naturalWidth,
-        height: naturalHeight,
-      });
-    }
+    setImageInfo({
+      id: predictionId?.toString() || Date.now().toString(),
+      name: currentImageName || "Medical Image",
+      width: naturalWidth,
+      height: naturalHeight,
+    });
   };
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth, naturalHeight } = e.currentTarget;
-    if (images.length > 0) {
-      setImageInfo({
-        id: Date.now().toString(),
-        name: images[0].name,
-        width: naturalWidth,
-        height: naturalHeight,
-      });
-    }
+    setImageInfo({
+      id: predictionId?.toString() || Date.now().toString(),
+      name: currentImageName || "Medical Image",
+      width: naturalWidth,
+      height: naturalHeight,
+    });
     resizeCanvas();
   };
 
@@ -820,7 +819,7 @@ export default function DashboardPage() {
                     />
                     <div className="flex items-center justify-between w-full px-2">
                       <div className="text-sm text-gray-600 truncate max-w-[60%]">
-                        {images[0]?.name}
+                        {currentImageName}
                       </div>
                       <label
                         htmlFor="image-upload-change"
