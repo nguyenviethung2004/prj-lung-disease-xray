@@ -11,7 +11,10 @@ from core.exceptions import ValidationException, AppException
 from datetime import datetime, timedelta
 from models.Documents import Documents
 # from services.tasks import process_pdf_task
-
+from typing import Optional
+from typing import Optional
+from sqlalchemy import func, case, Integer
+from models.Users import User
 
 def _secure_filename(filename: str) -> str:
     """Simple secure filename."""
@@ -145,10 +148,34 @@ async def get_pending_submitted_documents(session: AsyncSession) -> list[dict]:
         raise AppException(message="Could not fetch pending documents", status_code=500)
 
 
-async def get_all_submitted_documents(session: AsyncSession) -> list[dict]:
-    """Admin endpoint to see all documents that have been submitted by doctors."""
+async def get_all_submitted_documents(
+    session: AsyncSession,
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
+    search: Optional[str] = None
+) -> dict:
+    """Admin endpoint to see all documents that have been submitted by doctors with optional pagination, search and stats."""
     try:
-        from models.Users import User
+        # 1. Base query for stats (global stats of all submitted documents)
+        stats_stmt = select(
+            func.count(Documents.DocumentID).label("total_count"),
+            func.coalesce(func.sum(
+                case((Documents.Status == 'Done', 1), else_=0)
+            ), 0).label("processed_count"),
+            func.coalesce(func.sum(Documents.FileSizeMB), 0.0).label("total_storage_mb")
+        ).where(
+            Documents.IsSubmitted == True
+        )
+        
+        stats_result = await session.execute(stats_stmt)
+        stats_row = stats_result.one()
+        stats = {
+            "total_count": stats_row.total_count,
+            "processed_count": stats_row.processed_count,
+            "total_storage_mb": float(stats_row.total_storage_mb)
+        }
+
+        # 2. Base Query for items
         stmt = select(
             Documents.DocumentID,
             Documents.FileName,
@@ -165,10 +192,40 @@ async def get_all_submitted_documents(session: AsyncSession) -> list[dict]:
             User, Documents.UploadedBy == User.UserID, isouter=True
         ).where(
             Documents.IsSubmitted == True
-        ).order_by(Documents.UploadedAt.desc())
-        
+        )
+
+        # 3. Apply Search Filter if search query exists
+        if search:
+            search_filter = f"%{search}%"
+            stmt = stmt.where(
+                (Documents.FileName.ilike(search_filter)) |
+                (Documents.Description.ilike(search_filter)) |
+                (User.UserName.ilike(search_filter))
+            )
+
+        # Order by UploadedAt descending
+        stmt = stmt.order_by(Documents.UploadedAt.desc())
+
+        # 4. Get Total Count matching filter (for pagination)
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_result = await session.execute(count_stmt)
+        total_matching = count_result.scalar() or 0
+
+        # 5. Apply Pagination
+        if page is not None and limit is not None:
+            offset = (page - 1) * limit
+            stmt = stmt.limit(limit).offset(offset)
+
         result = await session.execute(stmt)
-        return result.mappings().all()
+        items = result.mappings().all()
+
+        return {
+            "items": items,
+            "total": total_matching,
+            "page": page,
+            "limit": limit,
+            "stats": stats
+        }
     except SQLAlchemyError as e:
         logger.error(f"Error fetching all submitted documents: {e}")
         raise AppException(message="Could not fetch documents", status_code=500)

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class DocumentResponseSchema(BaseModel):
@@ -17,6 +17,18 @@ class DocumentResponseSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DocumentStatsSchema(BaseModel):
+    total_count: int
+    processed_count: int
+    total_storage_mb: float
+
+class DocumentPaginationResponseSchema(BaseModel):
+    items: List[DocumentResponseSchema]
+    total: int
+    page: Optional[int] = None
+    limit: Optional[int] = None
+    stats: DocumentStatsSchema
 
 class DocumentUpdateSchema(BaseModel):
     Description: Optional[str] = None

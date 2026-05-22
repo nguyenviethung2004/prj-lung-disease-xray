@@ -52,7 +52,6 @@ export default function AdminReviewList() {
       const data = await apiFetch(url);
       setReviews(data.items);
       setTotal(data.total);
-      setCurrentPage(data.page);
     } catch (error) {
       console.error("Error loading review list:", error);
     } finally {
@@ -60,6 +59,7 @@ export default function AdminReviewList() {
     }
   };
 
+  // Check auth once and load metadata on mount
   useEffect(() => {
     const user = getAuthUser();
     if (!user) {
@@ -73,8 +73,15 @@ export default function AdminReviewList() {
     }
 
     fetchMetadata();
+  }, [router]);
+
+  // Fetch reviews whenever page or filters change
+  useEffect(() => {
+    const user = getAuthUser();
+    if (!user || user.role !== "Superadmin") return;
+
     fetchReviews(currentPage);
-  }, [router, currentPage, filters]);
+  }, [currentPage, filters]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -109,15 +116,15 @@ export default function AdminReviewList() {
           className="p-3 bg-white text-indigo-600 rounded-2xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] transition-all hover:scale-110 active:scale-95 group flex items-center justify-center"
           title="Refresh"
         >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="20" 
-            height="20" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2.5" 
-            strokeLinecap="round" 
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
             strokeLinejoin="round"
             className={`transition-transform duration-500 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`}
           >
@@ -261,8 +268,8 @@ export default function AdminReviewList() {
                 </tr>
               ) : (
                 reviews.map((review) => (
-                  <tr 
-                    key={review.id} 
+                  <tr
+                    key={review.id}
                     className="hover:bg-indigo-50/30 transition-colors cursor-pointer group"
                     onClick={() => setSelectedReview(review)}
                   >
@@ -366,8 +373,8 @@ export default function AdminReviewList() {
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                       className={`w-8 h-8 rounded-lg text-xs font-black transition-all hover:scale-110 active:scale-90 ${currentPage === pageNum
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 ring-2 ring-indigo-600 ring-offset-2'
-                          : 'bg-white border border-gray-200 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 shadow-sm'
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 ring-2 ring-indigo-600 ring-offset-2'
+                        : 'bg-white border border-gray-200 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 shadow-sm'
                         }`}
                     >
                       {pageNum}
@@ -399,7 +406,7 @@ export default function AdminReviewList() {
       {/* Review Detail Modal */}
       {selectedReview && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div 
+          <div
             className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
@@ -418,7 +425,7 @@ export default function AdminReviewList() {
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedReview.filename}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedReview(null)}
                 className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
               >
@@ -429,7 +436,7 @@ export default function AdminReviewList() {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                
+
                 {/* Left Side: Images */}
                 <div className="lg:col-span-8 space-y-6">
                   <div className={`grid gap-4 ${selectedReview.doctor_final === 'Pneumonia' ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -437,7 +444,7 @@ export default function AdminReviewList() {
                     <div className="space-y-2">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Original Image (Input)</p>
                       <div className="aspect-square bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-inner group relative">
-                        <img 
+                        <img
                           src={(() => {
                             let p = selectedReview.image_path || "";
                             if (p.startsWith('http')) return p;
@@ -460,9 +467,9 @@ export default function AdminReviewList() {
                       <div className="space-y-2">
                         <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest text-center">Doctor Review (Bounding Boxes)</p>
                         <div className="aspect-square bg-black rounded-2xl overflow-hidden border border-blue-100 shadow-inner relative group">
-                          <AnnotationCanvas 
-                            imagePath={selectedReview.image_path} 
-                            boxesJson={selectedReview.bounding_boxes} 
+                          <AnnotationCanvas
+                            imagePath={selectedReview.image_path}
+                            boxesJson={selectedReview.bounding_boxes}
                           />
                         </div>
                       </div>
@@ -500,7 +507,7 @@ export default function AdminReviewList() {
                         <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">{selectedReview.confidence.toFixed(1)}%</span>
                       </div>
                     </div>
-                    
+
                     <div className="p-4 rounded-2xl bg-gray-900 border border-gray-800 shadow-xl">
                       <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Doctor's Conclusion</p>
                       <div className="flex items-center justify-between">
@@ -558,7 +565,7 @@ function AnnotationCanvas({ imagePath, boxesJson }: { imagePath: string, boxesJs
 
     const img = new Image();
     const baseUrl = "http://localhost:8000";
-    
+
     let p = imagePath || "";
     if (!p.startsWith('http')) {
       if (p.startsWith('backend/')) p = p.substring(8);
@@ -566,19 +573,19 @@ function AnnotationCanvas({ imagePath, boxesJson }: { imagePath: string, boxesJs
       if (p.startsWith('/')) p = p.substring(1);
       p = `${baseUrl}/${p}`;
     }
-    
+
     console.log("Đang tải ảnh lên Canvas từ:", p);
-    
+
     img.src = p;
     img.onload = () => {
       console.log("Ảnh đã tải xong, bắt đầu vẽ lên Canvas...");
       // Set canvas size to match its container's displayed size
       const container = canvas.parentElement;
       if (!container) return;
-      
+
       const displayWidth = container.clientWidth;
       const displayHeight = container.clientHeight;
-      
+
       canvas.width = displayWidth;
       canvas.height = displayHeight;
 
@@ -606,17 +613,17 @@ function AnnotationCanvas({ imagePath, boxesJson }: { imagePath: string, boxesJs
               ctx.strokeStyle = "#3b82f6";
               ctx.lineWidth = 3;
               ctx.strokeRect(x1, y1, w, h);
-              
+
               // Draw Label Background
               ctx.fillStyle = "#3b82f6";
               const labelY = y1 > 25 ? y1 - 25 : y1;
               ctx.fillRect(x1, labelY, 90, 25);
-              
+
               // Draw Label Text
               ctx.fillStyle = "white";
               ctx.font = "bold 12px sans-serif";
               ctx.fillText("Pneumonia", x1 + 8, labelY + 17);
-              
+
               // Optional: Add a subtle glow/shadow to the box
               ctx.shadowBlur = 10;
               ctx.shadowColor = "rgba(59, 130, 246, 0.5)";
@@ -629,7 +636,7 @@ function AnnotationCanvas({ imagePath, boxesJson }: { imagePath: string, boxesJs
         }
       }
     };
-    
+
     img.onerror = () => {
       console.error("KHÔNG THỂ TẢI ẢNH TỪ PATH:", img.src);
     };

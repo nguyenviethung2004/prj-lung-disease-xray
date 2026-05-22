@@ -14,6 +14,14 @@ export default function DocumentManagementPage() {
   const [docs, setDocs] = useState(INITIAL_DOCS);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [totalDocs, setTotalDocs] = useState(0);
+  const [stats, setStats] = useState({
+    total_count: 0,
+    processed_count: 0,
+    total_storage_mb: 0.0
+  });
+
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [currentDoc, setCurrentDoc] = useState<any>(null);
@@ -31,6 +39,7 @@ export default function DocumentManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
+  // Check auth once on mount
   useEffect(() => {
     const user = getAuthUser();
     if (!user) {
@@ -42,15 +51,22 @@ export default function DocumentManagementPage() {
       router.push("/dashboard");
       return;
     }
-
-    fetchDocuments();
   }, [router]);
 
   const fetchDocuments = async () => {
     setIsLoading(true);
     try {
-      const data = await apiFetch("/documents/");
-      setDocs(data || []);
+      const data = await apiFetch(`/documents/?page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(debouncedSearch)}`);
+      if (data && data.items) {
+        setDocs(data.items);
+        setTotalDocs(data.total);
+        if (data.stats) {
+          setStats(data.stats);
+        }
+      } else {
+        setDocs([]);
+        setTotalDocs(0);
+      }
     } catch (error: any) {
       showToast(error.message || "Failed to load document list", "error");
     } finally {
@@ -58,24 +74,30 @@ export default function DocumentManagementPage() {
     }
   };
 
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1); // Reset to page 1 when search query changes
+    }, 450);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
+  // Fetch when page or debounced search term changes
+  useEffect(() => {
+    const user = getAuthUser();
+    if (!user || user.role !== "Superadmin") return;
+    
+    fetchDocuments();
+  }, [currentPage, debouncedSearch]);
+
   const fileInputRef = useState<any>(null); // We'll use a direct ref or just the event
 
-  const filteredDocs = docs.filter(doc =>
-    (doc.Description || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (doc.FileName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (doc.UploaderName || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredDocs.length / itemsPerPage);
-  const paginatedDocs = filteredDocs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Reset to page 1 when search term changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+  const totalPages = Math.ceil(totalDocs / itemsPerPage);
+  const paginatedDocs = docs;
 
   const handleDelete = async (id: number) => {
     setDocToProcess(id);
@@ -86,8 +108,8 @@ export default function DocumentManagementPage() {
     if (!docToProcess) return;
     try {
       await apiFetch(`/documents/${docToProcess}`, { method: "DELETE" });
-      setDocs(docs.filter(d => d.DocumentID !== docToProcess));
       showToast("Document deleted successfully!");
+      fetchDocuments();
     } catch (error: any) {
       showToast(error.message || "Failed to delete document", "error");
     } finally {
@@ -136,15 +158,17 @@ export default function DocumentManagementPage() {
         console.log(`[Polling] Doc ${docId} status: ${updatedDoc?.Status}`);
         
         if (updatedDoc) {
-          // Luôn cập nhật state để sync UI (ví dụ nếu có doc khác thay đổi)
-          setDocs(data || []);
+          // Update only the specific document status inside our docs state
+          setDocs(prev => prev.map(d => d.DocumentID === docId ? { ...d, Status: updatedDoc.Status } : d));
 
           if (updatedDoc.Status === 'Done') {
             showToast(`Document "${fileName}" processing finished!`, "success");
             clearInterval(interval);
+            fetchDocuments();
           } else if (updatedDoc.Status === 'Error') {
             showToast(`Document "${fileName}" processing failed!`, "error");
             clearInterval(interval);
+            fetchDocuments();
           }
         }
       } catch (err) {
@@ -329,16 +353,16 @@ export default function DocumentManagementPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Documents</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{docs.length}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total_count}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Processed</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{docs.filter(d => d.Status === "Done").length}</p>
+          <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.processed_count}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Storage Used</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">
-            {docs.reduce((acc, d) => acc + (d.FileSizeMB || 0), 0).toFixed(1)} MB
+            {stats.total_storage_mb.toFixed(1)} MB
           </p>
         </div>
       </div>
@@ -477,7 +501,7 @@ export default function DocumentManagementPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/30">
             <div className="text-[13px] text-gray-500 font-medium">
-              Showing <span className="text-gray-900 font-bold">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="text-gray-900 font-bold">{Math.min(currentPage * itemsPerPage, filteredDocs.length)}</span> of <span className="text-gray-900 font-bold">{filteredDocs.length}</span> documents
+              Showing <span className="text-gray-900 font-bold">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="text-gray-900 font-bold">{Math.min(currentPage * itemsPerPage, totalDocs)}</span> of <span className="text-gray-900 font-bold">{totalDocs}</span> documents
             </div>
             <div className="flex items-center gap-2">
               <button

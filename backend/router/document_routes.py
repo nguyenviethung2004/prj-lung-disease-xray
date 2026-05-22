@@ -1,16 +1,17 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Union
 from fastapi import APIRouter, Depends, status, File, UploadFile, Form, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.db_session import get_async_db
 from utils.jwt_manager import RoleChecker, get_current_payload, get_current_user
 from services import document_service
-from schemas.document_schema import DocumentResponseSchema, DocumentUpdateSchema
+from schemas.document_schema import DocumentResponseSchema, DocumentUpdateSchema, DocumentPaginationResponseSchema
 from services.rag_service import process_document_to_qdrant
 from core.exceptions import AppException
 from fastapi import BackgroundTasks
 from core.db_session import AsyncSessionLocal
-
+from services.rag_service import search_hybrid_qdrant
+from typing import List, Dict, Any
 
 router = APIRouter(
     prefix="/documents",
@@ -119,10 +120,18 @@ async def admin_upload_document(
 # GENERAL CRUD (Admin only)
 # ──────────────────────────────────────────────────────────────────────────────
 
-@router.get("/", response_model=List[DocumentResponseSchema], dependencies=[Depends(RoleChecker(["admin", "Superadmin"]))])
-async def list_documents(db: AsyncSession = Depends(get_async_db)):
-    """List all documents submitted by doctors (Admin only)"""
-    return await document_service.get_all_submitted_documents(db)
+@router.get("/", response_model=Union[DocumentPaginationResponseSchema, List[DocumentResponseSchema]], dependencies=[Depends(RoleChecker(["admin", "Superadmin"]))])
+async def list_documents(
+    page: Optional[int] = Query(None, ge=1),
+    limit: Optional[int] = Query(None, ge=1),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """List all documents submitted by doctors (Admin only) with optional pagination & search"""
+    result = await document_service.get_all_submitted_documents(db, page=page, limit=limit, search=search)
+    if page is None and limit is None:
+        return result["items"]
+    return result
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(RoleChecker(["admin", "Superadmin", "Doctors"]))])
 async def delete_document(
@@ -214,8 +223,7 @@ async def process_document_now(
     
     return {"success": True, "message": "Document processing started in background"}
 
-from services.rag_service import search_hybrid_qdrant
-from typing import List, Dict, Any
+
 
 @router.get("/search", response_model=List[Dict[str, Any]])
 async def hybrid_search(
