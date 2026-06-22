@@ -30,7 +30,8 @@ async def save_pdf_metadata(
     file_bytes: bytes,
     filesize_mb: float,
     description: str = " ",
-    is_submitted: bool = False
+    is_submitted: bool = False,
+    is_chat: bool = False
 ) -> int:
     try:
         new_doc = Documents(
@@ -42,7 +43,8 @@ async def save_pdf_metadata(
             Description=description,
             FileData=file_bytes,
             Status='Pending',
-            IsSubmitted=is_submitted
+            IsSubmitted=is_submitted,
+            DocumentIsChat=is_chat
         )
         session.add(new_doc)
         await session.commit()
@@ -62,7 +64,8 @@ async def upload_pdf_service(
     role: str,
     conversation_id: int = None,
     description: str = "",
-    submit_now: bool = False
+    submit_now: bool = False,
+    is_chat: bool = False
 ):
     """
     Xử lý upload PDF. 
@@ -87,7 +90,8 @@ async def upload_pdf_service(
             file_bytes=file_bytes,
             filesize_mb=file_size_mb,
             description=description,
-            is_submitted=is_submitted
+            is_submitted=is_submitted,
+            is_chat=is_chat
         )
 
         return {
@@ -105,7 +109,7 @@ async def upload_pdf_service(
 
 async def get_all_documents(session: AsyncSession, user_id: int = None, is_admin: bool = False) -> list[Documents]:
     try:
-        stmt = select(Documents)
+        stmt = select(Documents).where(Documents.DocumentIsChat == False)
         if not is_admin:
             # Doctor only sees their own
             stmt = stmt.where(Documents.UploadedBy == user_id)
@@ -138,7 +142,8 @@ async def get_pending_submitted_documents(session: AsyncSession) -> list[dict]:
             User, Documents.UploadedBy == User.UserID, isouter=True
         ).where(
             Documents.IsSubmitted == True, 
-            Documents.Status == 'Pending'
+            Documents.Status == 'Pending',
+            Documents.DocumentIsChat == False
         ).order_by(Documents.UploadedAt.desc())
         
         result = await session.execute(stmt)
@@ -164,7 +169,8 @@ async def get_all_submitted_documents(
             ), 0).label("processed_count"),
             func.coalesce(func.sum(Documents.FileSizeMB), 0.0).label("total_storage_mb")
         ).where(
-            Documents.IsSubmitted == True
+            Documents.IsSubmitted == True,
+            Documents.DocumentIsChat == False
         )
         
         stats_result = await session.execute(stats_stmt)
@@ -191,7 +197,8 @@ async def get_all_submitted_documents(
         ).join(
             User, Documents.UploadedBy == User.UserID, isouter=True
         ).where(
-            Documents.IsSubmitted == True
+            Documents.IsSubmitted == True,
+            Documents.DocumentIsChat == False
         )
 
         # 3. Apply Search Filter if search query exists

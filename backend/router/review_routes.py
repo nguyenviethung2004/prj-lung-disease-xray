@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.db_session import get_async_db
 from schemas.lung_disease_schema import DoctorReviewCreate, DoctorReviewOut
-from services.review_service import submit_review_service, get_dashboard_stats_service, get_all_reviews_service
+from services.review_service import submit_review_service, get_dashboard_stats_service, get_all_reviews_service, search_patient_records_service
 from utils.jwt_manager import get_current_user, RoleChecker
 
 router = APIRouter(prefix="/reviews", tags=["Doctor Reviews"])
@@ -54,3 +54,25 @@ async def list_all_reviews(
         class_id, min_confidence, max_confidence, 
         doctor_id, is_corrected, start_date, end_date
     )
+
+@router.get("/search-patient")
+async def search_patient(
+    patient_code: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user_id: str = Depends(get_current_user)
+):
+    """
+    Search past predictions/reviews for a patient code.
+    """
+    if not patient_code:
+        raise HTTPException(status_code=400, detail="Patient code is required")
+        
+    import re
+    patient_code = patient_code.strip()
+    if not re.match(r"^[a-zA-Z0-9]+$", patient_code):
+        raise HTTPException(status_code=400, detail="Mã bệnh nhân chỉ được chứa chữ cái và số viết liền không dấu")
+
+    try:
+        return await search_patient_records_service(db, patient_code)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

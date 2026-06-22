@@ -150,30 +150,78 @@ async def get_or_create_model(db: AsyncSession, model_name: str, version: str = 
         await db.refresh(obj)
     return obj
 
-async def run_inference(file: UploadFile, db: AsyncSession, user_id: int):
+async def run_inference(file: UploadFile = None, db: AsyncSession = None, user_id: int = None, patient_code: str = None, image_id: int = None):
     try:
-        # 1. Save uploaded file to disk
-        file_extension = os.path.splitext(file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
-        
-        # Reset file cursor before reading
-        await file.seek(0)
-        contents = await file.read()
-        
-        with open(file_path, "wb") as buffer:
-            buffer.write(contents)
+        if image_id is not None:
+            # 1. Fetch existing UploadedImage
+            stmt = select(UploadedImage).where(UploadedImage.ImageID == image_id)
+            res = await db.execute(stmt)
+            uploaded_image = res.scalar_one_or_none()
+            if not uploaded_image:
+                raise ValueError("Image ID not found in database")
             
-        # 2. Save UploadedImage record to DB with path
-        uploaded_image = UploadedImage(
-            UserID=user_id,
-            ImagePath=file_path.replace("\\", "/"),
-            OriginalFileName=file.filename,
-            Status="predicted"
-        )
-        db.add(uploaded_image)
-        await db.commit()
-        await db.refresh(uploaded_image)
+            if patient_code:
+                uploaded_image.PatientCode = patient_code
+                db.add(uploaded_image)
+                await db.commit()
+                await db.refresh(uploaded_image)
+            
+            file_path = uploaded_image.ImagePath
+            if not os.path.exists(file_path):
+                raise ValueError(f"Image file not found on server disk: {file_path}")
+                
+            with open(file_path, "rb") as f:
+                contents = f.read()
+                
+            unique_filename = os.path.basename(file_path)
+            original_filename = uploaded_image.OriginalFileName
+        else:
+            if not file:
+                raise ValueError("File is required when image_id is not provided")
+            
+            # Check if this patient already has an image with the same original filename
+            stmt_exist = select(UploadedImage).where(
+                UploadedImage.PatientCode == patient_code,
+                UploadedImage.OriginalFileName == file.filename
+            )
+            res_exist = await db.execute(stmt_exist)
+            existing_image = res_exist.scalars().first()
+            
+            if existing_image:
+                logger.info(f"Ảnh '{file.filename}' cho bệnh nhân '{patient_code}' đã tồn tại (ImageID: {existing_image.ImageID}). Sử dụng lại bản ghi cũ.")
+                uploaded_image = existing_image
+                file_path = uploaded_image.ImagePath
+                if not os.path.exists(file_path):
+                    raise ValueError(f"Image file not found on server disk: {file_path}")
+                with open(file_path, "rb") as f:
+                    contents = f.read()
+                unique_filename = os.path.basename(file_path)
+                original_filename = uploaded_image.OriginalFileName
+            else:
+                # 1. Save uploaded file to disk
+                file_extension = os.path.splitext(file.filename)[1]
+                unique_filename = f"{uuid.uuid4()}{file_extension}"
+                file_path = os.path.join(UPLOAD_DIR, unique_filename)
+                
+                # Reset file cursor before reading
+                await file.seek(0)
+                contents = await file.read()
+                
+                with open(file_path, "wb") as buffer:
+                    buffer.write(contents)
+                    
+                # 2. Save UploadedImage record to DB with path
+                uploaded_image = UploadedImage(
+                    UserID=user_id,
+                    ImagePath=file_path.replace("\\", "/"),
+                    OriginalFileName=file.filename,
+                    Status="predicted",
+                    PatientCode=patient_code
+                )
+                db.add(uploaded_image)
+                await db.commit()
+                await db.refresh(uploaded_image)
+                original_filename = file.filename
 
         # 3. Read image for AI processing
         np_arr = np.frombuffer(contents, np.uint8)
@@ -182,7 +230,7 @@ async def run_inference(file: UploadFile, db: AsyncSession, user_id: int):
         if image_bgr is None:
             raise ValueError("Không đọc được ảnh")
 
-        logger.info(f"Đã đọc ảnh thành công: {file.filename} (shape: {image_bgr.shape})")
+        logger.info(f"Đã đọc ảnh thành công: {original_filename} (shape: {image_bgr.shape})")
 
         # 4. Gọi pipeline
         result = await run_in_threadpool(process_ai_pipeline, image_bgr)
@@ -191,6 +239,27 @@ async def run_inference(file: UploadFile, db: AsyncSession, user_id: int):
         result_filename = f"result_{unique_filename}"
         result_path = os.path.join(RESULT_DIR, result_filename)
         cv2.imwrite(result_path, result["result_image_bgr"])
+
+        # Check if a prediction already exists for this image
+        stmt_pred = select(Prediction).where(Prediction.ImageID == uploaded_image.ImageID).order_by(Prediction.PredictionID.asc())
+        res_pred = await db.execute(stmt_pred)
+        existing_prediction = res_pred.scalars().first()
+
+        if existing_prediction is not None:
+            logger.info(f"Ảnh đã được predict trước đó (PredictionID: {existing_prediction.PredictionID}). Chạy ở chế độ xem, không lưu DB.")
+            return {
+                "success": True,
+                "message": "Inference completed (view only, not saved to DB)",
+                "prediction_id": existing_prediction.PredictionID,
+                "image_id": uploaded_image.ImageID,
+                "label": result["label"],
+                "confidence": result["confidence"],
+                "analysis_type": result["analysis_type"],
+                "processing_time": result["processing_time"],
+                "result_image": encode_image_base64(result["result_image_bgr"]),
+                "original_image": encode_image_base64(result["original_image_bgr"]),
+                "boxes": result.get("boxes", [])
+            }
 
         # 6. Get/Create Class and Model metadata
         class_obj = await get_or_create_class(db, result["label"])
@@ -211,7 +280,7 @@ async def run_inference(file: UploadFile, db: AsyncSession, user_id: int):
         await db.commit()
         await db.refresh(prediction)
 
-        logger.info(f"Hoàn thành xử lý file: {file.filename}")
+        logger.info(f"Hoàn thành xử lý file: {original_filename}")
 
         return {
             "success": True,
@@ -240,14 +309,25 @@ async def get_doctor_pending_images_service(db: AsyncSession, user_id: int):
     Get images uploaded by this doctor that haven't been reviewed yet.
     """
     from models import DoctorReview
+    from sqlalchemy import func
+    
+    # Subquery to get the latest prediction ID for each image
+    subq = (
+        select(
+            Prediction.ImageID,
+            func.max(Prediction.PredictionID).label("latest_pred_id")
+        )
+        .group_by(Prediction.ImageID)
+        .subquery()
+    )
     
     query = (
         select(UploadedImage, Prediction, Class.ClassName)
-        .join(Prediction, UploadedImage.ImageID == Prediction.ImageID)
+        .join(subq, UploadedImage.ImageID == subq.c.ImageID)
+        .join(Prediction, Prediction.PredictionID == subq.c.latest_pred_id)
         .join(Class, Prediction.PredictedClassID == Class.ClassID)
-        .outerjoin(DoctorReview, Prediction.PredictionID == DoctorReview.PredictionID)
         .where(UploadedImage.UserID == user_id)
-        .where(DoctorReview.ReviewID == None)
+        .where(UploadedImage.Status != "reviewed")
         .order_by(UploadedImage.UploadedAt.desc())
     )
     
@@ -265,6 +345,7 @@ async def get_doctor_pending_images_service(db: AsyncSession, user_id: int):
             "created_at": img.UploadedAt,
             "ai_label": class_name,
             "confidence": pred.Confidence,
-            "ai_boxes": pred.AIBoxes
+            "ai_boxes": pred.AIBoxes,
+            "patient_code": img.PatientCode
         })
     return pending

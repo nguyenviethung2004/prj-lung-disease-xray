@@ -136,7 +136,7 @@ async def refresh_token(
     # The models/Users logic usually works with Email in my previous refactor.
     # Let's check if User has get_by_id or just use select
     
-    query_user = select(User).where(User.UserID == int(current_user_id))
+    query_user = select(User).where(User.UserID == int(current_user_id), User.IsDeleted == False)
     result_user = await db.execute(query_user)
     user = result_user.scalar_one_or_none()
     

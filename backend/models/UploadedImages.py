@@ -11,6 +11,7 @@ class UploadedImage(Base):
     OriginalFileName = Column(String(255), nullable=False)
     UploadedAt = Column(DateTime, server_default=func.now())
     Status = Column(String(50), server_default="pending") # pending, predicted, reviewed
+    PatientCode = Column(String(100), nullable=True) # Mã bệnh nhân
 
     def __repr__(self):
-        return f"<UploadedImage(ImagePath={self.ImagePath}, Status={self.Status})>"
+        return f"<UploadedImage(ImagePath={self.ImagePath}, Status={self.Status}, PatientCode={self.PatientCode})>"

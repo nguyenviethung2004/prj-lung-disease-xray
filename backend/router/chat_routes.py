@@ -196,7 +196,8 @@ async def chat_upload_document(
         file_name=file.filename,
         uploaded_by=user_id,
         role=role,
-        submit_now=True
+        submit_now=True,
+        is_chat=True
     )
     
     doc_id = upload_result["document_id"]

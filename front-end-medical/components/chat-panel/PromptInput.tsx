@@ -77,20 +77,20 @@ export default function PromptInput({
           <div className="px-4 pt-3 flex flex-wrap items-center gap-2">
             {selectedFiles.map((file, idx) => (
               <div key={idx} className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-semibold animate-in zoom-in-95 duration-200">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>
                 <span className="truncate max-w-[120px]">{file.name}</span>
-                <button 
+                <button
                   onClick={() => onRemoveFile?.(idx)}
                   className="ml-1 p-0.5 hover:bg-blue-200 rounded-full transition-colors"
                   title="Gỡ file"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                 </button>
               </div>
             ))}
             <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider opacity-80 flex items-center gap-1 ml-1">
-               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-               {selectedFiles.length} File sẵn sàng
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              {selectedFiles.length} File sẵn sàng
             </div>
           </div>
         )}
@@ -142,8 +142,8 @@ export default function PromptInput({
               type="submit"
               disabled={!inputValue.trim() || disabled}
               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${!inputValue.trim() || disabled
-                  ? "bg-gray-100 text-gray-300 cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95"
+                ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95"
                 }`}
             >
               <svg

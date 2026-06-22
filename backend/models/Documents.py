@@ -28,6 +28,7 @@ class Documents(Base):
     Description = Column(Text)
     Status = Column(String(20), default='Pending') # Pending, Done
     IsSubmitted = Column(Boolean, default=False)
+    DocumentIsChat = Column(Boolean, default=False)
     FileData = Column(LONGBLOB)
 
     def save(self, session):

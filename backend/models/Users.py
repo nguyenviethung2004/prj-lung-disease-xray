@@ -30,6 +30,7 @@ class User(Base):
     UpdatedAt = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     MustChangePassword = Column(Boolean, default=True)
+    IsDeleted = Column(Boolean, default=False, nullable=False, server_default="0")
 
     def __repr__(self):
         return f"<User(UserName={self.UserName}, Email={self.Email})>"
@@ -58,5 +59,5 @@ class User(Base):
         await session.refresh(self)
 
     async def delete(self, session: AsyncSession):
-        await session.delete(self)
+        self.IsDeleted = True
         await session.commit()

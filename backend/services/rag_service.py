@@ -59,7 +59,7 @@ async def process_document_to_qdrant(
                 "document_id": document_id
             }
 
-        logger.info(f"Hoàn thành chunk, thu được {len(chunks)} chunks. Đang chuẩn bị đưa lên Pinecone và DB...")
+        logger.info(f"Hoàn thành chunk, thu được {len(chunks)} chunks. Đang chuẩn bị đưa lên Qdrant và DB...")
 
         # 2. Lấy văn bản
         texts = [chunk["chunk_text"] for chunk in chunks]

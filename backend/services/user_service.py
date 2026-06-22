@@ -86,7 +86,7 @@ async def login_service(session: AsyncSession, data):
         password = data.password
 
         user = await User.get_by_emails(session, email)
-        if not user or not user.check_password(password):
+        if not user or user.IsDeleted or not user.check_password(password):
             raise UnauthorizedException("Invalid email or password")
 
         refresh_token = create_refresh_token(identity=str(user.UserID))
@@ -126,7 +126,7 @@ async def login_service(session: AsyncSession, data):
 
 async def change_password_service(session: AsyncSession, user_id: int, data):
     try:
-        query = select(User).where(User.UserID == user_id)
+        query = select(User).where(User.UserID == user_id, User.IsDeleted == False)
         result = await session.execute(query)
         user = result.scalar_one_or_none()
 
@@ -181,7 +181,7 @@ async def change_password_service(session: AsyncSession, user_id: int, data):
 
 async def get_me_service(session: AsyncSession, user_id: int):
     try:
-        query = select(User).where(User.UserID == user_id)
+        query = select(User).where(User.UserID == user_id, User.IsDeleted == False)
         result = await session.execute(query)
         user = result.scalar_one_or_none()
 
@@ -195,7 +195,7 @@ async def get_me_service(session: AsyncSession, user_id: int):
 
 async def get_all_users_service(session: AsyncSession, role: Optional[str] = None):
     try:
-        query = select(User).order_by(User.CreatedAt.desc())
+        query = select(User).where(User.IsDeleted == False).order_by(User.CreatedAt.desc())
         
         if role:
             query = query.where(User.Role == role)
@@ -207,7 +207,7 @@ async def get_all_users_service(session: AsyncSession, role: Optional[str] = Non
 
 async def update_user_service(session: AsyncSession, user_id: int, data: Any):
     try:
-        query = select(User).where(User.UserID == user_id)
+        query = select(User).where(User.UserID == user_id, User.IsDeleted == False)
         result = await session.execute(query)
         user = result.scalar_one_or_none()
 
@@ -248,7 +248,7 @@ async def delete_user_service(session: AsyncSession, user_id: int, current_user_
         if int(user_id) == int(current_user_id):
             raise ValidationException("Bạn không thể tự xóa tài khoản của chính mình")
 
-        query = select(User).where(User.UserID == user_id)
+        query = select(User).where(User.UserID == user_id, User.IsDeleted == False)
         result = await session.execute(query)
         user = result.scalar_one_or_none()
 

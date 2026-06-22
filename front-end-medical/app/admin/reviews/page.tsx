@@ -235,6 +235,7 @@ export default function AdminReviewList() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Image</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Patient Code</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">AI Prediction</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Confidence</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Doctor Final</th>
@@ -248,6 +249,7 @@ export default function AdminReviewList() {
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="animate-pulse">
                     <td className="px-6 py-4"><div className="w-12 h-12 bg-gray-200 rounded"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 w-16 bg-gray-100 rounded"></div></td>
                     <td className="px-6 py-4"><div className="h-4 w-20 bg-gray-100 rounded"></div></td>
                     <td className="px-6 py-4"><div className="h-4 w-12 bg-gray-100 rounded"></div></td>
                     <td className="px-6 py-4"><div className="h-4 w-20 bg-gray-100 rounded"></div></td>
@@ -258,7 +260,7 @@ export default function AdminReviewList() {
                 ))
               ) : reviews.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-20 text-center">
+                  <td colSpan={8} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                       <p className="text-gray-500 font-medium">No matching data found with the current filters.</p>
@@ -290,6 +292,11 @@ export default function AdminReviewList() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
+                      <span className="font-bold text-gray-950 text-sm">
+                        {review.patient_code}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
                         {review.ai_predicted}
                       </span>
@@ -315,12 +322,12 @@ export default function AdminReviewList() {
                       {review.is_corrected ? (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-md border border-orange-100 w-fit">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"></path></svg>
-                          Updated
+                          Corrected
                         </span>
                       ) : (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-100 w-fit">
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          Correct
+                          Accurate
                         </span>
                       )}
                     </td>
@@ -422,7 +429,13 @@ export default function AdminReviewList() {
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-gray-900">Review Details #{selectedReview.id}</h2>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedReview.filename}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-[10px] font-bold text-indigo-700">
+                      Mã BN: {selectedReview.patient_code}
+                    </span>
+                    <span className="text-xs font-medium text-gray-300">|</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedReview.filename}</span>
+                  </div>
                 </div>
               </div>
               <button

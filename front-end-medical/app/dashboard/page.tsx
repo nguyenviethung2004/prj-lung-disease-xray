@@ -23,6 +23,16 @@ type ImageInfo = {
   height: number;
 };
 
+const cleanPatientCode = (val: string) => {
+  if (!val) return "";
+  return val
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^a-zA-Z0-9]/g, "");
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -68,6 +78,16 @@ export default function DashboardPage() {
   const [aiInitialLabel, setAiInitialLabel] = useState<string>("");
   const [currentImageName, setCurrentImageName] = useState<string>("");
   const [zoom, setZoom] = useState(1);
+
+  // Patient Code state
+  const [patientCode, setPatientCode] = useState<string>("");
+  const [currentImageId, setCurrentImageId] = useState<number | null>(null);
+
+  // Search Patient States
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingPatient, setIsSearchingPatient] = useState(false);
 
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -138,6 +158,8 @@ export default function DashboardPage() {
     setAiInitialLabel(item.ai_label);
     setSelectedLabel(item.ai_label);
     setCurrentImageName(item.filename || "Pending Image");
+    setPatientCode(item.patient_code || "");
+    setCurrentImageId(item.image_id || null);
 
     // Load AI boxes if present in the pending item
     if (item.ai_boxes) {
@@ -192,7 +214,77 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchPatient = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) {
+      showToast("Vui lòng nhập mã bệnh nhân cần tìm kiếm!", "warning");
+      return;
+    }
+    setIsSearchingPatient(true);
+    try {
+      const data = await apiFetch(`/reviews/search-patient?patient_code=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchResults(data || []);
+      if (data.length === 0) {
+        showToast("Không tìm thấy kết quả chẩn đoán nào cho bệnh nhân này.", "info");
+      } else {
+        showToast(`Tìm thấy ${data.length} kết quả chẩn đoán.`, "success");
+      }
+    } catch (error: any) {
+      console.error("Lỗi khi tìm kiếm bệnh nhân:", error);
+      showToast(error.message || "Lỗi khi tìm kiếm bệnh nhân", "error");
+    } finally {
+      setIsSearchingPatient(false);
+    }
+  };
+
+  const handleSelectSearchImage = (item: any) => {
+    const baseUrl = "http://127.0.0.1:8000";
+
+    const cleanPath = (p: string) => {
+      if (!p) return "";
+      if (p.startsWith('http')) return p;
+      let path = p;
+      if (path.startsWith('backend/')) path = path.substring(8);
+      if (path.startsWith('/backend/')) path = path.substring(9);
+      if (path.startsWith('/')) path = path.substring(1);
+      return `${baseUrl}/${path}`;
+    };
+
+    setSourceUrl(cleanPath(item.image_path));
+    setAnalyzedUrl(cleanPath(item.image_path)); // Default to base image
+
+    setPredictionId(item.prediction_id);
+    setConfidenceScore(item.confidence);
+    setAiInitialLabel(item.ai_predicted);
+    setSelectedLabel(item.doctor_final || item.ai_predicted);
+    setCurrentImageName(item.filename || "Patient Image");
+    setPatientCode(item.patient_code || "");
+    setDoctorNote(item.note || "");
+    setCurrentImageId(item.image_id || null);
+
+    // Load annotations
+    if (item.bounding_boxes) {
+      try {
+        const parsedBoxes = JSON.parse(item.bounding_boxes);
+        if (Array.isArray(parsedBoxes)) {
+          setAnnotations(parsedBoxes);
+        } else {
+          setAnnotations([]);
+        }
+      } catch (e) {
+        console.error("Error parsing boxes:", e);
+        setAnnotations([]);
+      }
+    } else {
+      setAnnotations([]);
+    }
+
+    setIsReviewed(item.status === 'reviewed');
+    setIsSearchModalOpen(false);
+    showToast(`Đã tải thông tin ca bệnh của bệnh nhân: ${item.patient_code}`);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFiles = Array.from(e.target.files);
       setImages(selectedFiles);
@@ -210,7 +302,24 @@ export default function DashboardPage() {
       setZoom(1);
       setSelectedLabel("");
       setIsReviewed(false);
+      setCurrentImageId(null); // Reset the image ID so it uploads the new file!
+
+      setPatientCode("");
+
       fetchPendingImages();
+
+      // Check if image already exists in database
+      try {
+        const filename = selectedFiles[0].name;
+        const res = await apiFetch(`/inference/check-image-exists?filename=${encodeURIComponent(filename)}`);
+        if (res && res.exists) {
+          setPatientCode(res.patient_code || "");
+          setCurrentImageId(res.image_id || null);
+          showToast(`This image exists in database. Patient code "${res.patient_code}" has been auto-filled!`, "info");
+        }
+      } catch (error) {
+        console.error("Error checking image existence:", error);
+      }
     }
   };
 
@@ -236,14 +345,26 @@ export default function DashboardPage() {
   };
 
   const handleAnalyzeImage = async () => {
-    if (images.length === 0 || !imageInfo) return;
-    const file = images[0];
+    if (images.length === 0 && !currentImageId) {
+      showToast("Vui lòng chọn hoặc tải lên một ảnh để phân tích!", "warning");
+      return;
+    }
+
+    if (!patientCode.trim()) {
+      showToast("Vui lòng nhập Mã bệnh nhân trước khi phân tích!", "warning");
+      return;
+    }
 
     setIsAnalyzing(true);
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      if (currentImageId) {
+        formData.append("image_id", currentImageId.toString());
+      } else if (images.length > 0) {
+        formData.append("file", images[0]);
+      }
+      formData.append("patient_code", patientCode.trim());
 
       const data = await apiFetch("/inference/predict", {
         method: "POST",
@@ -269,6 +390,10 @@ export default function DashboardPage() {
 
         if (data.prediction_id) {
           setPredictionId(data.prediction_id);
+        }
+
+        if (data.image_id) {
+          setCurrentImageId(data.image_id);
         }
 
         // Auto-load AI boxes into annotations state with more robust mapping
@@ -350,7 +475,6 @@ export default function DashboardPage() {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (isReviewed) return;
     if (selectedLabel !== "Pneumonia") {
       showToast("Bounding boxes can only be drawn for pneumonia diagnosis (Pneumonia).", "info");
       return;
@@ -695,6 +819,32 @@ export default function DashboardPage() {
 
             <button
               onClick={() => {
+                setIsSearchModalOpen(true);
+                setSearchQuery("");
+                setSearchResults([]);
+              }}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition-all hover:bg-indigo-100 hover:border-indigo-200 hover:scale-105 active:scale-95 focus:outline-none shadow-sm group"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-2 transition-transform duration-500 group-hover:scale-110"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              Search Patient
+            </button>
+
+            <button
+              onClick={() => {
                 setIsPendingModalOpen(true);
                 fetchPendingImages();
               }}
@@ -835,13 +985,30 @@ export default function DashboardPage() {
                         />
                       </label>
                     </div>
+
+                    {/* Patient Code Input */}
+                    <div className="w-full px-2 flex flex-col gap-1.5 items-start mt-2">
+                      <label htmlFor="patient-code" className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        Patient Code <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="patient-code"
+                        type="text"
+                        value={patientCode}
+                        onChange={(e) => setPatientCode(cleanPatientCode(e.target.value))}
+                        placeholder="Enter patient code (without spaces or accents)"
+                        disabled={isAnalyzing}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium bg-white text-gray-800"
+                      />
+                    </div>
+
                     <button
                       onClick={handleAnalyzeImage}
-                      disabled={isAnalyzing || !imageInfo || !!analyzedUrl}
+                      disabled={isAnalyzing || !sourceUrl}
                       className="w-full bg-blue-600 text-white rounded-md py-2 px-4 shadow-sm hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-300 group-hover:rotate-12"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" /></svg>
-                      {isAnalyzing ? "Analyzing..." : analyzedUrl ? "Đã phân tích" : "Phân tích bằng AI"}
+                      {isAnalyzing ? "Analyzing..." : analyzedUrl ? "Re-analyze with AI" : "Analyze with AI"}
                     </button>
                   </div>
                 )}
@@ -859,7 +1026,7 @@ export default function DashboardPage() {
                     <h4 className="font-semibold text-sm text-gray-900 uppercase tracking-wider">HealthScan Result</h4>
                     {confidenceScore !== null && (
                       <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-100 shadow-sm animate-pulse">
-                        ĐÃ CÓ KẾT QUẢ AI
+                        AI RESULT READY
                       </span>
                     )}
                   </div>
@@ -882,7 +1049,7 @@ export default function DashboardPage() {
                         <span className={`text-[13px] font-medium transition-colors ${selectedLabel === "Normal" ? 'text-green-700' : 'text-gray-700'}`}>Normal</span>
                         {selectedLabel === "Normal" && confidenceScore !== null && (
                           <div className="mt-1 flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
-                            <span className="text-[10px] font-semibold text-green-500 uppercase tracking-tight">Dự đoán AI</span>
+                            <span className="text-[10px] font-semibold text-green-500 uppercase tracking-tight">AI Prediction</span>
                             <div className="flex-1 h-1.5 bg-green-100 rounded-full overflow-hidden">
                               <div className="h-full bg-green-600 rounded-full" style={{ width: `${Math.round(confidenceScore)}%` }}></div>
                             </div>
@@ -909,7 +1076,7 @@ export default function DashboardPage() {
                         <span className={`text-[13px] font-medium transition-colors ${selectedLabel === "COVID-19" ? 'text-blue-700' : 'text-gray-700'}`}>COVID-19</span>
                         {selectedLabel === "COVID-19" && confidenceScore !== null && (
                           <div className="mt-1 flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
-                            <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-tight">Dự đoán AI</span>
+                            <span className="text-[10px] font-semibold text-blue-500 uppercase tracking-tight">AI Prediction</span>
                             <div className="flex-1 h-1.5 bg-blue-100 rounded-full overflow-hidden">
                               <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.round(confidenceScore)}%` }}></div>
                             </div>
@@ -936,7 +1103,7 @@ export default function DashboardPage() {
                         <span className={`text-[13px] font-medium transition-colors ${selectedLabel === "Pneumonia" ? 'text-red-700' : 'text-gray-700'}`}>Pneumonia</span>
                         {selectedLabel === "Pneumonia" && confidenceScore !== null && (
                           <div className="mt-1 flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
-                            <span className="text-[10px] font-semibold text-red-500 uppercase tracking-tight">Dự đoán AI</span>
+                            <span className="text-[10px] font-semibold text-red-500 uppercase tracking-tight">AI Prediction</span>
                             <div className="flex-1 h-1.5 bg-red-100 rounded-full overflow-hidden">
                               <div className="h-full bg-red-600 rounded-full" style={{ width: `${Math.round(confidenceScore)}%` }}></div>
                             </div>
@@ -1103,8 +1270,8 @@ export default function DashboardPage() {
                   </button>
                   <button
                     onClick={handleSaveReview}
-                    disabled={!predictionId || isExporting || isReviewed || (selectedLabel === "Pneumonia" && annotations.length === 0)}
-                    className={`flex-1 bg-indigo-600 text-white rounded-md py-2 text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg ${predictionId && !isReviewed && !(selectedLabel === "Pneumonia" && annotations.length === 0) ? 'shadow-indigo-200 ring-2 ring-indigo-500 ring-offset-2' : ''}`}
+                    disabled={!predictionId || isExporting || (selectedLabel === "Pneumonia" && annotations.length === 0)}
+                    className={`flex-1 bg-indigo-600 text-white rounded-md py-2 text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg ${predictionId && !(selectedLabel === "Pneumonia" && annotations.length === 0) ? 'shadow-indigo-200 ring-2 ring-indigo-500 ring-offset-2' : ''}`}
                   >
                     {isExporting ? (
                       <>
@@ -1115,7 +1282,7 @@ export default function DashboardPage() {
                         Saving results...
                       </>
                     ) : isReviewed ? (
-                      "Results saved"
+                      "Update results"
                     ) : (
                       "Save results"
                     )}
@@ -1198,7 +1365,7 @@ export default function DashboardPage() {
                         <>
                           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500 mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                           <p className="text-sm font-semibold text-indigo-900">Select PDF file</p>
-                          <p className="text-xs text-gray-500 mt-1">Maximum file size: 16MB</p>
+                          {/* <p className="text-xs text-gray-500 mt-1">Maximum file size: 16MB</p> */}
                         </>
                       )}
                     </label>
@@ -1309,10 +1476,10 @@ export default function DashboardPage() {
       {/* Confirmation Dialog */}
       <ConfirmDialog
         isOpen={isDeleteDialogOpen}
-        title="Xóa tài liệu"
-        message="Bạn có chắc chắn muốn xóa tài liệu này? Hành động này không thể hoàn tác."
-        confirmLabel="Xóa ngay"
-        cancelLabel="Hủy bỏ"
+        title="Delete Document"
+        message="Are you sure you want to delete this document? This action cannot be undone."
+        confirmLabel="Delete Now"
+        cancelLabel="Cancel"
         onConfirm={confirmDelete}
         onCancel={() => setIsDeleteDialogOpen(false)}
         isDanger={true}
@@ -1379,7 +1546,7 @@ export default function DashboardPage() {
                   <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                   </div>
-                  <p className="font-medium italic">Tuyệt vời! Bạn đã hoàn thành tất cả các ca cần review.</p>
+                  <p className="font-medium italic">Great! You have completed all cases pending review.</p>
                 </div>
               )}
             </div>
@@ -1389,7 +1556,150 @@ export default function DashboardPage() {
                 onClick={() => setIsPendingModalOpen(false)}
                 className="px-6 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
               >
-                Đóng
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Search Modal */}
+      {isSearchModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-gray-900">Search Patient Records</h3>
+                  <p className="text-xs text-gray-500 font-medium">Search diagnosis and X-ray history by patient code</p>
+                </div>
+              </div>
+              <button onClick={() => setIsSearchModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50/30 border-b border-gray-100">
+              <form onSubmit={handleSearchPatient} className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="Enter patient code (e.g. BN001, xray_p12...)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(cleanPatientCode(e.target.value))}
+                  className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-gray-800 bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={isSearchingPatient}
+                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSearchingPatient ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Searching...
+                    </>
+                  ) : (
+                    "Search"
+                  )}
+                </button>
+              </form>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50/20">
+              {searchResults.length > 0 ? (
+                <div className="space-y-4">
+                  {searchResults.map((item) => (
+                    <div
+                      key={item.prediction_id}
+                      onClick={() => handleSelectSearchImage(item)}
+                      className="group flex gap-5 p-4 rounded-2xl border border-gray-100 bg-white hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-500/5 cursor-pointer transition-all relative overflow-hidden"
+                    >
+                      <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0 border border-gray-100 relative">
+                        <img
+                          src={
+                            item.image_path.startsWith('http')
+                              ? item.image_path
+                              : `http://127.0.0.1:8000/${item.image_path.replace(/^backend\//, '').replace(/^\/backend\//, '').replace(/^\//, '')}`
+                          }
+                          alt="Patient Scan"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between py-0.5">
+                        <div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-bold text-gray-900 text-base">Patient Code: {item.patient_code}</span>
+                            {item.status === 'reviewed' ? (
+                              <span className="px-2.5 py-0.5 rounded-full bg-green-50 border border-green-100 text-[10px] font-bold text-green-700">
+                                Reviewed
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-700">
+                                Unreviewed
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1 font-medium">Scan Date: {new Date(item.uploaded_at).toLocaleString('en-US')}</p>
+
+                          <div className="mt-2 text-xs space-y-1 text-gray-600">
+                            <div>
+                              <span className="font-semibold text-gray-700">AI Prediction:</span> {item.ai_predicted} ({item.confidence.toFixed(1)}%)
+                            </div>
+                            {item.status === 'reviewed' && (
+                              <>
+                                <div>
+                                  <span className="font-semibold text-gray-700">Doctor Conclusion:</span> <span className="font-bold text-indigo-700">{item.doctor_final}</span>
+                                </div>
+                                {item.note && (
+                                  <div className="text-gray-500 italic max-w-[500px] truncate mt-0.5">
+                                    &ldquo;{item.note}&rdquo;
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col justify-center gap-2">
+                        <button
+                          onClick={() => handleSelectSearchImage(item)}
+                          className="px-4 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                          Load Case
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-64 flex flex-col items-center justify-center text-gray-400 gap-4">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                  </div>
+                  <p className="font-medium italic">Enter a patient code and click Search to view history.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-50 bg-gray-50/30 flex justify-end">
+              <button
+                onClick={() => setIsSearchModalOpen(false)}
+                className="px-6 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+              >
+                Close
               </button>
             </div>
           </div>

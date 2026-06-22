@@ -15,16 +15,28 @@ async def submit_review_service(db: AsyncSession, data: DoctorReviewCreate):
     if not prediction:
         raise NotFoundException("Prediction not found")
 
-    # 2. Create DoctorReview
-    new_review = DoctorReview(
-        PredictionID=data.PredictionID,
-        DoctorID=data.DoctorID,
-        FinalClassID=data.FinalClassID,
-        DoctorNote=data.DoctorNote,
-        IsCorrected=data.IsCorrected,
-        BoundingBoxes=data.BoundingBoxes
-    )
-    db.add(new_review)
+    # 2. Create or Update DoctorReview
+    query_existing = select(DoctorReview).where(DoctorReview.PredictionID == data.PredictionID)
+    result_existing = await db.execute(query_existing)
+    existing_review = result_existing.scalar_one_or_none()
+
+    if existing_review:
+        existing_review.DoctorID = data.DoctorID
+        existing_review.FinalClassID = data.FinalClassID
+        existing_review.DoctorNote = data.DoctorNote
+        existing_review.IsCorrected = data.IsCorrected
+        existing_review.BoundingBoxes = data.BoundingBoxes
+        new_review = existing_review
+    else:
+        new_review = DoctorReview(
+            PredictionID=data.PredictionID,
+            DoctorID=data.DoctorID,
+            FinalClassID=data.FinalClassID,
+            DoctorNote=data.DoctorNote,
+            IsCorrected=data.IsCorrected,
+            BoundingBoxes=data.BoundingBoxes
+        )
+        db.add(new_review)
     
     # 3. Update UploadedImage status
     query_img = select(UploadedImage).where(UploadedImage.ImageID == prediction.ImageID)
@@ -33,15 +45,29 @@ async def submit_review_service(db: AsyncSession, data: DoctorReviewCreate):
     if uploaded_image:
         uploaded_image.Status = "reviewed"
     
-    # 4. If corrected, save to TrainingFeedback
+    # 4. If corrected, save or update TrainingFeedback. If not corrected, delete existing TrainingFeedback if any.
     if data.IsCorrected:
-        feedback = TrainingFeedback(
-            ImageID=prediction.ImageID,
-            OldPredictionID=prediction.PredictedClassID,
-            CorrectLabelID=data.FinalClassID,
-            UsedForTraining=False
-        )
-        db.add(feedback)
+        query_feedback = select(TrainingFeedback).where(TrainingFeedback.ImageID == prediction.ImageID)
+        result_feedback = await db.execute(query_feedback)
+        existing_feedback = result_feedback.scalar_one_or_none()
+        
+        if existing_feedback:
+            existing_feedback.OldPredictionID = prediction.PredictedClassID
+            existing_feedback.CorrectLabelID = data.FinalClassID
+        else:
+            feedback = TrainingFeedback(
+                ImageID=prediction.ImageID,
+                OldPredictionID=prediction.PredictedClassID,
+                CorrectLabelID=data.FinalClassID,
+                UsedForTraining=False
+            )
+            db.add(feedback)
+    else:
+        query_feedback = select(TrainingFeedback).where(TrainingFeedback.ImageID == prediction.ImageID)
+        result_feedback = await db.execute(query_feedback)
+        existing_feedback = result_feedback.scalar_one_or_none()
+        if existing_feedback:
+            await db.delete(existing_feedback)
         
     await db.commit()
     await db.refresh(new_review)
@@ -165,6 +191,14 @@ async def get_all_reviews_service(
     ClassAI = aliased(Class)
     ClassDoctor = aliased(Class)
     
+    # Subquery to get the latest ReviewID for each unique Image
+    subq = (
+        select(func.max(DoctorReview.ReviewID).label("latest_review_id"))
+        .join(Prediction, DoctorReview.PredictionID == Prediction.PredictionID)
+        .group_by(Prediction.ImageID)
+        .subquery()
+    )
+
     # Base filter conditions
     filters = []
     if class_id:
@@ -182,19 +216,24 @@ async def get_all_reviews_service(
     if end_date:
         filters.append(DoctorReview.ReviewedAt <= end_date)
 
-    # 1. Get total count with filters
-    total_query = select(func.count(DoctorReview.ReviewID)).join(Prediction, DoctorReview.PredictionID == Prediction.PredictionID)
+    # 1. Get total count with filters (explicitly join subq)
+    total_query = (
+        select(func.count(DoctorReview.ReviewID))
+        .join(Prediction, DoctorReview.PredictionID == Prediction.PredictionID)
+        .join(subq, DoctorReview.ReviewID == subq.c.latest_review_id)
+    )
     if filters:
         total_query = total_query.where(*filters)
     total_count = await db.scalar(total_query)
     
-    # 2. Get paginated items with filters
+    # 2. Get paginated items with filters (explicitly join subq)
     offset = (page - 1) * page_size
     query = (
         select(
             DoctorReview.ReviewID,
             UploadedImage.ImagePath,
             UploadedImage.OriginalFileName,
+            UploadedImage.PatientCode,
             ClassAI.ClassName.label("ai_predicted"),
             ClassDoctor.ClassName.label("doctor_final"),
             Prediction.Confidence,
@@ -206,6 +245,7 @@ async def get_all_reviews_service(
         )
         .select_from(DoctorReview)
         .join(Prediction, DoctorReview.PredictionID == Prediction.PredictionID)
+        .join(subq, DoctorReview.ReviewID == subq.c.latest_review_id)
         .join(UploadedImage, Prediction.ImageID == UploadedImage.ImageID)
         .join(ClassAI, Prediction.PredictedClassID == ClassAI.ClassID)
         .join(ClassDoctor, DoctorReview.FinalClassID == ClassDoctor.ClassID)
@@ -224,6 +264,7 @@ async def get_all_reviews_service(
             "id": row.ReviewID,
             "image_path": row.ImagePath,
             "filename": row.OriginalFileName,
+            "patient_code": row.PatientCode,
             "ai_predicted": row.ai_predicted,
             "doctor_final": row.doctor_final,
             "confidence": row.Confidence,
@@ -240,3 +281,71 @@ async def get_all_reviews_service(
         "page_size": page_size,
         "items": reviews
     }
+
+
+async def search_patient_records_service(db: AsyncSession, patient_code: str):
+    ClassAI = aliased(Class)
+    ClassDoctor = aliased(Class)
+    
+    # Subquery to get the latest prediction ID for each image
+    subq = (
+        select(
+            Prediction.ImageID,
+            func.max(Prediction.PredictionID).label("latest_pred_id")
+        )
+        .group_by(Prediction.ImageID)
+        .subquery()
+    )
+    
+    # Query all predictions/reviews for the given patient code
+    query = (
+        select(
+            UploadedImage.ImageID,
+            UploadedImage.ImagePath,
+            UploadedImage.OriginalFileName,
+            UploadedImage.UploadedAt,
+            UploadedImage.Status,
+            UploadedImage.PatientCode,
+            Prediction.PredictionID,
+            Prediction.Confidence,
+            ClassAI.ClassName.label("ai_predicted"),
+            DoctorReview.ReviewID,
+            ClassDoctor.ClassName.label("doctor_final"),
+            DoctorReview.DoctorNote,
+            DoctorReview.ReviewedAt,
+            DoctorReview.BoundingBoxes
+        )
+        .select_from(UploadedImage)
+        .join(subq, UploadedImage.ImageID == subq.c.ImageID)
+        .join(Prediction, Prediction.PredictionID == subq.c.latest_pred_id)
+        .join(ClassAI, Prediction.PredictedClassID == ClassAI.ClassID)
+        .outerjoin(DoctorReview, Prediction.PredictionID == DoctorReview.PredictionID)
+        .outerjoin(ClassDoctor, DoctorReview.FinalClassID == ClassDoctor.ClassID)
+        .where(UploadedImage.PatientCode == patient_code)
+        .order_by(UploadedImage.UploadedAt.desc())
+    )
+    
+    result = await db.execute(query)
+    rows = result.all()
+    
+    records = []
+    for row in rows:
+        records.append({
+            "image_id": row.ImageID,
+            "image_path": row.ImagePath,
+            "filename": row.OriginalFileName,
+            "uploaded_at": row.UploadedAt,
+            "status": row.Status,
+            "patient_code": row.PatientCode,
+            "prediction_id": row.PredictionID,
+            "confidence": row.Confidence,
+            "ai_predicted": row.ai_predicted,
+            "review_id": row.ReviewID,
+            "doctor_final": row.doctor_final if row.ReviewID else None,
+            "note": row.DoctorNote if row.ReviewID else None,
+            "reviewed_at": row.ReviewedAt if row.ReviewID else None,
+            "bounding_boxes": row.BoundingBoxes if row.ReviewID else None
+        })
+        
+    return records
+
