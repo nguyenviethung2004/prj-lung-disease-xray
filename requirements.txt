@@ -1,38 +1,52 @@
-# Core API
+# CUDA 11.8 PyTorch extra index
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# Core API & Web Server
 fastapi
 uvicorn[standard]
 gunicorn
 
-# Database
+# Database & ORM
 sqlalchemy
 pyodbc
 pymysql
 aiomysql
 cryptography
 
-# Validation & config
+# Validation & Configuration
 pydantic
 python-dotenv
 email-validator
 
-# Auth (thay Flask JWT)
+# Authentication
 python-jose[cryptography]
 passlib[bcrypt]
 
-# AI / ML / xử lý dữ liệu
-numpy>=1.26.0
-nltk
-PyPDF2
+# Asynchronous Tasks & Caching
+celery
+redis
+
+# Vector Databases & RAG
+qdrant-client
+pinecone
+
+# LLM Integration
+groq
+
+# AI / ML & Deep Learning (GPU CUDA 11.8)
 torch
 torchvision
-opencv-python-headless
 torchxrayvision
 timm
 pytorch-grad-cam
+sentence-transformers
+fastembed
 
-pinecone
-groq
+# Data Processing & Computer Vision
+numpy>=1.26.0
+nltk
+PyPDF2
+opencv-python-headless
+
 # Dev / logging
-wandb
-
-# CORS (FastAPI có sẵn middleware, KHÔNG cần flask-cors)
+wandb
